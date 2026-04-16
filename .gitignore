@@ -1,0 +1,7 @@
+**/data/
+docker-compose.local.yml
+.env
+result
+
+# NixOS
+.direnv

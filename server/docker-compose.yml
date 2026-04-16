@@ -1,0 +1,19 @@
+services:
+  tracksync-server:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - ACCOUNT__0__DEVICE_ID=my-columbus
+      # - ACCOUNT__0__TARGET_TYPE=dawarich
+      - ACCOUNT__0__TARGET_URL=http://dawarich:3000
+      - ACCOUNT__0__API_KEY=your-dawarich-api-key
+
+      - CLIENT__0__ID=my-laptop
+      - CLIENT__0__TOKEN=your-client-token
+      - CLIENT__0__ALLOWED_DEVICES=my-columbus
+    volumes:
+      - data:/app/data
+
+volumes:
+  data:
