@@ -29,7 +29,7 @@
             pname = "tracksync";
             version = self.shortRev or self.dirtyShortRev or "dev";
             src = ./tracksync;
-            vendorHash = "sha256-1O5Y2FVyT5ZV6rVoPRf0HygfcqYhM9gMoTOP8PosI0I=";
+            vendorHash = "sha256-M7X3CgkAxZNcD/bHCX+G24xq6QWswQT3AkaFYkHOXEY=";
           };
         }
       );
