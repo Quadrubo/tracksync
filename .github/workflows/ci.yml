@@ -19,11 +19,17 @@ jobs:
       - name: Build client
         run: cd tracksync && go build .
 
+      - name: Test client
+        run: cd tracksync && go test ./...
+
       - name: Vet server
         run: cd server && go vet ./...
 
       - name: Build server
         run: cd server && go build .
+
+      - name: Test server
+        run: cd server && go test ./...
 
       - name: Lint
         uses: golangci/golangci-lint-action@v6
