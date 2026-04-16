@@ -44,6 +44,7 @@ type Config struct {
 	Port                  string
 	StateDB               string
 	TargetTimeout         time.Duration
+	MaxUploadSize         int64
 	PassthroughConversion bool
 	Accounts              []Account `validate:"required,dive"`
 	Clients               []Client  `validate:"required,dive"`
@@ -69,6 +70,7 @@ func Load(envFile string) (*Config, error) {
 	v.SetDefault("PORT", "8080")
 	v.SetDefault("STATE_DB", "data/state.db")
 	v.SetDefault("TARGET_TIMEOUT", "30s")
+	v.SetDefault("MAX_UPLOAD_SIZE", "32")
 	v.AutomaticEnv()
 
 	if envFile != "" {
@@ -84,10 +86,16 @@ func Load(envFile string) (*Config, error) {
 		return nil, fmt.Errorf("config: invalid TARGET_TIMEOUT: %w", err)
 	}
 
+	maxUploadSize := v.GetInt64("MAX_UPLOAD_SIZE")
+	if maxUploadSize <= 0 {
+		return nil, fmt.Errorf("config: MAX_UPLOAD_SIZE must be positive")
+	}
+
 	cfg := &Config{
 		Port:                  v.GetString("PORT"),
 		StateDB:               v.GetString("STATE_DB"),
 		TargetTimeout:         targetTimeout,
+		MaxUploadSize:         maxUploadSize << 20, // MB to bytes
 		PassthroughConversion: v.GetBool("PASSTHROUGH_CONVERSION"),
 		Accounts:              parseGroup[Account](v, "ACCOUNT", "DEVICE_ID"),
 		Clients:               parseGroup[Client](v, "CLIENT", "ID"),

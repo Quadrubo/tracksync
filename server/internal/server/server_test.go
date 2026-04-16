@@ -45,6 +45,7 @@ func setupTestServer(t *testing.T, targetErr error) *Server {
 	t.Cleanup(func() { _ = db.Close() })
 
 	cfg := &config.Config{
+		MaxUploadSize: 32 << 20,
 		Clients: []config.Client{
 			{ID: "test-client", Token: "valid-token", AllowedDeviceIDs: []string{"dev-1"}},
 			{ID: "limited-client", Token: "limited-token", AllowedDeviceIDs: []string{"dev-2"}},
