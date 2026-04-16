@@ -11,8 +11,8 @@ import (
 
 func TestFindFiles_GPX(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "track1.gpx"), []byte("<gpx/>"), 0644)
-	os.WriteFile(filepath.Join(dir, "track2.gpx"), []byte("<gpx/>"), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "track1.gpx"), []byte("<gpx/>"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "track2.gpx"), []byte("<gpx/>"), 0644))
 
 	files, err := (&P10Pro{}).FindFiles(dir)
 	require.NoError(t, err)
@@ -21,9 +21,9 @@ func TestFindFiles_GPX(t *testing.T) {
 
 func TestFindFiles_CaseInsensitive(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "lower.gpx"), []byte("<gpx/>"), 0644)
-	os.WriteFile(filepath.Join(dir, "UPPER.GPX"), []byte("<gpx/>"), 0644)
-	os.WriteFile(filepath.Join(dir, "Mixed.Gpx"), []byte("<gpx/>"), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "lower.gpx"), []byte("<gpx/>"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "UPPER.GPX"), []byte("<gpx/>"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Mixed.Gpx"), []byte("<gpx/>"), 0644))
 
 	files, err := (&P10Pro{}).FindFiles(dir)
 	require.NoError(t, err)
@@ -32,9 +32,9 @@ func TestFindFiles_CaseInsensitive(t *testing.T) {
 
 func TestFindFiles_SkipsNonGPX(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "track.gpx"), []byte("<gpx/>"), 0644)
-	os.WriteFile(filepath.Join(dir, "photo.jpg"), []byte("jpeg"), 0644)
-	os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("text"), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "track.gpx"), []byte("<gpx/>"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "photo.jpg"), []byte("jpeg"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("text"), 0644))
 
 	files, err := (&P10Pro{}).FindFiles(dir)
 	require.NoError(t, err)
@@ -45,8 +45,8 @@ func TestFindFiles_Recursive(t *testing.T) {
 	dir := t.TempDir()
 	sub := filepath.Join(dir, "subdir", "nested")
 	require.NoError(t, os.MkdirAll(sub, 0755))
-	os.WriteFile(filepath.Join(dir, "root.gpx"), []byte("<gpx/>"), 0644)
-	os.WriteFile(filepath.Join(sub, "nested.gpx"), []byte("<gpx/>"), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "root.gpx"), []byte("<gpx/>"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(sub, "nested.gpx"), []byte("<gpx/>"), 0644))
 
 	files, err := (&P10Pro{}).FindFiles(dir)
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestFindFiles_EmptyDir(t *testing.T) {
 
 func TestFindFiles_AbsolutePaths(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "track.gpx"), []byte("<gpx/>"), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "track.gpx"), []byte("<gpx/>"), 0644))
 
 	files, err := (&P10Pro{}).FindFiles(dir)
 	require.NoError(t, err)

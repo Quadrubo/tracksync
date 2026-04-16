@@ -39,7 +39,7 @@ func setupTestServer(t *testing.T, targetErr error) *Server {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 	require.NoError(t, InitDB(db))
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	cfg := &config.Config{
 		Clients: []config.Client{
@@ -58,8 +58,8 @@ func uploadRequest(token, deviceID, filename string, body []byte) *http.Request 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, _ := writer.CreateFormFile("file", filename)
-	part.Write(body)
-	writer.Close()
+	_, _ = part.Write(body)
+	_ = writer.Close()
 
 	req := httptest.NewRequest("POST", "/upload", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -153,7 +153,7 @@ func TestUpload_TargetNotForwarded_OnDuplicate(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 	require.NoError(t, InitDB(db))
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	cfg := &config.Config{
 		Clients: []config.Client{{ID: "c", Token: "tok", AllowedDeviceIDs: []string{"dev"}}},
@@ -172,8 +172,8 @@ func TestUpload_MissingFileField(t *testing.T) {
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	writer.WriteField("other", "value")
-	writer.Close()
+	_ = writer.WriteField("other", "value")
+	_ = writer.Close()
 
 	req := httptest.NewRequest("POST", "/upload", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())

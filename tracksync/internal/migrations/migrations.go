@@ -55,12 +55,12 @@ func Run(db *sql.DB) error {
 		}
 
 		if _, err := tx.Exec(string(data)); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("applying migration %s: %w", name, err)
 		}
 
 		if _, err := tx.Exec("INSERT INTO schema_migrations (version) VALUES (?)", name); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("recording migration %s: %w", name, err)
 		}
 

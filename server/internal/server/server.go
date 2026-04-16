@@ -62,7 +62,7 @@ func (s *Server) authenticate(r *http.Request) *config.Client {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "ok")
+	_, _ = fmt.Fprintln(w, "ok")
 }
 
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +95,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing file field", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
@@ -117,7 +117,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if exists {
 		slog.Info("duplicate", "file", header.Filename, "sha256", hashHex[:12], "client", client.ID)
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "duplicate")
+		_, _ = fmt.Fprintln(w, "duplicate")
 		return
 	}
 
@@ -150,11 +150,11 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if rows == 0 {
 		slog.Info("duplicate (concurrent)", "file", header.Filename, "sha256", hashHex[:12], "client", client.ID)
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "duplicate")
+		_, _ = fmt.Fprintln(w, "duplicate")
 		return
 	}
 
 	slog.Info("uploaded", "file", header.Filename, "sha256", hashHex[:12], "client", client.ID, "device", deviceID)
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintln(w, "uploaded")
+	_, _ = fmt.Fprintln(w, "uploaded")
 }

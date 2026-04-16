@@ -49,7 +49,7 @@ func main() {
 			slog.Error("failed to open state db", "error", err)
 			os.Exit(1)
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		n, err := sync.ClearUploads(db)
 		if err != nil {
 			slog.Error("failed to clear uploads", "error", err)
@@ -85,7 +85,7 @@ func main() {
 		slog.Error("failed to open state db", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	dev, ok := device.Get(*deviceType)
 	if !ok {
@@ -171,7 +171,7 @@ func main() {
 
 // writeSummary outputs the summary as JSON to stdout for machine consumption.
 func writeSummary(s Summary) {
-	json.NewEncoder(os.Stdout).Encode(s)
+	_ = json.NewEncoder(os.Stdout).Encode(s)
 }
 
 func defaultStateDB() string {

@@ -26,11 +26,11 @@ func OpenStateDB(path string) (*sql.DB, error) {
 		return nil, err
 	}
 	if _, err := db.Exec("PRAGMA journal_mode=wal"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	if err := migrations.Run(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return db, nil
@@ -98,7 +98,7 @@ func Upload(client *http.Client, serverURL, token, deviceID, hostname, filename 
 	if err != nil {
 		return "", fmt.Errorf("sending request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 	status := strings.TrimSpace(string(body))

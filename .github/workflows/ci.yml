@@ -32,13 +32,15 @@ jobs:
         run: cd server && go test ./...
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
+          version: v2.11.4
           working-directory: tracksync
 
       - name: Lint server
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
+          version: v2.11.4
           working-directory: server
 
   nix:

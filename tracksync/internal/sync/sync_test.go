@@ -19,7 +19,7 @@ func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := OpenStateDB(filepath.Join(t.TempDir(), "state.db"))
 	require.NoError(t, err)
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 
@@ -45,14 +45,14 @@ func TestRecordUpload_Idempotent(t *testing.T) {
 	require.NoError(t, RecordUpload(db, "hash1", "a.gpx", "dev"), "INSERT OR IGNORE should not error")
 
 	var count int
-	db.QueryRow("SELECT COUNT(*) FROM uploaded WHERE sha256 = ?", "hash1").Scan(&count)
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM uploaded WHERE sha256 = ?", "hash1").Scan(&count))
 	assert.Equal(t, 1, count)
 }
 
 func TestClearUploads(t *testing.T) {
 	db := openTestDB(t)
 	for i := 0; i < 5; i++ {
-		RecordUpload(db, fmt.Sprintf("hash-%d", i), fmt.Sprintf("file-%d.gpx", i), "dev")
+		require.NoError(t, RecordUpload(db, fmt.Sprintf("hash-%d", i), fmt.Sprintf("file-%d.gpx", i), "dev"))
 	}
 
 	n, err := ClearUploads(db)
@@ -101,7 +101,7 @@ func TestUpload_Created(t *testing.T) {
 		assert.Equal(t, "dev-1", r.Header.Get("X-Device-ID"))
 		assert.Equal(t, "myhost", r.Header.Get("X-Client-Host"))
 		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintln(w, "uploaded")
+		_, _ = fmt.Fprintln(w, "uploaded")
 	}))
 	defer ts.Close()
 
@@ -114,7 +114,7 @@ func TestUpload_Created(t *testing.T) {
 func TestUpload_Duplicate(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "duplicate")
+		_, _ = fmt.Fprintln(w, "duplicate")
 	}))
 	defer ts.Close()
 
@@ -127,7 +127,7 @@ func TestUpload_Duplicate(t *testing.T) {
 func TestUpload_ServerError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintln(w, "internal error")
+		_, _ = fmt.Fprintln(w, "internal error")
 	}))
 	defer ts.Close()
 
@@ -140,7 +140,7 @@ func TestOpenStateDB_CreatesDirectory(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "dir", "state.db")
 	db, err := OpenStateDB(path)
 	require.NoError(t, err)
-	db.Close()
+	_ = db.Close()
 
 	_, err = os.Stat(path)
 	assert.NoError(t, err, "database file should exist")
