@@ -103,3 +103,8 @@ func TestDawarich_DefaultTimeout(t *testing.T) {
 func TestDawarich_Type(t *testing.T) {
 	assert.Equal(t, "dawarich", (&Dawarich{}).Type())
 }
+
+func TestDawarich_AcceptedFormats(t *testing.T) {
+	formats := (&Dawarich{}).AcceptedFormats()
+	assert.Equal(t, []string{"geojson", "gpx_1.1"}, formats)
+}

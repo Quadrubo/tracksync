@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Quadrubo/tracksync/server/internal/config"
+	"github.com/Quadrubo/tracksync/server/internal/converter"
 	"github.com/Quadrubo/tracksync/server/internal/migrations"
 	"github.com/Quadrubo/tracksync/server/internal/target"
 )
@@ -129,8 +130,37 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := t.Send(header.Filename, data); err != nil {
-		slog.Error("target failed", "target", t.Type(), "file", header.Filename, "error", err)
+	// Convert format if needed
+	sourceFormat := r.Header.Get("X-Source-Format")
+	if sourceFormat == "" {
+		http.Error(w, "missing X-Source-Format header", http.StatusBadRequest)
+		return
+	}
+
+	convertedData, chosenFormat, newFilename, err := converter.Convert(
+		sourceFormat, data, t.AcceptedFormats(), header.Filename, s.cfg.PassthroughConversion,
+	)
+	if err != nil {
+		slog.Error("conversion failed",
+			"source", sourceFormat,
+			"file", header.Filename,
+			"error", err,
+		)
+		http.Error(w, "format conversion failed", http.StatusUnprocessableEntity)
+		return
+	}
+
+	if chosenFormat != sourceFormat {
+		slog.Info("converted",
+			"file", header.Filename,
+			"from", sourceFormat,
+			"to", chosenFormat,
+			"newFile", newFilename,
+		)
+	}
+
+	if err := t.Send(newFilename, convertedData); err != nil {
+		slog.Error("target failed", "target", t.Type(), "source", header.Filename, "file", newFilename, "error", err)
 		http.Error(w, "target forward failed", http.StatusBadGateway)
 		return
 	}
@@ -148,13 +178,13 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		slog.Info("duplicate (concurrent)", "file", header.Filename, "sha256", hashHex[:12], "client", client.ID)
+		slog.Info("duplicate (concurrent)", "source", header.Filename, "file", newFilename, "sha256", hashHex[:12], "client", client.ID)
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintln(w, "duplicate")
 		return
 	}
 
-	slog.Info("uploaded", "file", header.Filename, "sha256", hashHex[:12], "client", client.ID, "device", deviceID)
+	slog.Info("uploaded", "source", header.Filename, "file", newFilename, "sha256", hashHex[:12], "client", client.ID, "device", deviceID)
 	w.WriteHeader(http.StatusCreated)
 	_, _ = fmt.Fprintln(w, "uploaded")
 }

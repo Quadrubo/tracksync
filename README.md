@@ -1,9 +1,10 @@
 # Tracksync
 
-Syncs GPX files from GPS loggers to self-hosted location tracking services like [Dawarich](https://dawarich.app/). Plug in your device, tracks get uploaded automatically.
+Syncs track files from GPS loggers to self-hosted location tracking services like [Dawarich](https://dawarich.app/). Plug in your device, tracks get uploaded automatically.
 
 ## Features
 
+- Format conversion - automatically converts between device and target formats to preserve all data
 - Deduplication - files are only uploaded once
 - Multi-client - sync from multiple machines to the same server
 - Extensible [device support](#supported-devices)
@@ -21,8 +22,8 @@ Syncs GPX files from GPS loggers to self-hosted location tracking services like 
 
 Tracksync consists of three parts:
 
-- **Client** - a CLI tool that reads GPX files from a mounted GPS device and uploads them to the server.
-- **Server** - receives uploads, deduplicates them, and forwards new files to a configured target like Dawarich. Runs as a Docker container.
+- **Client** - a CLI tool that reads track files from a mounted GPS device and uploads them to the server.
+- **Server** - receives uploads, deduplicates them, converts them to the best format for the target, and forwards files to a configured target like Dawarich. Runs as a Docker container.
 - **NixOS module** - automates the client by detecting USB plug-in via udev, mounting the device, running the sync, and sending desktop notifications.
 
 ## Install the client
@@ -101,27 +102,30 @@ tracksync \
   --mount-point /mnt/gps
 ```
 
-| Flag            | Default                             | Required              | Description            |
-| --------------- | ----------------------------------- | --------------------- | ---------------------- |
-| `--server-url`  |                                     | Yes                   | Tracksync server URL   |
-| `--token`       |                                     | Yes if not token-file | Auth token inline      |
-| `--token-file`  |                                     | Yes if not token      | Auth token from file   |
-| `--device-type` |                                     | Yes                   | GPS device type        |
-| `--device-id`   |                                     | Yes                   | Device identifier      |
-| `--mount-point` |                                     | Yes                   | Device mount point     |
-| `--state-db`    | `~/.local/share/tracksync/state.db` | No                    | Client state database  |
-| `--log-format`  | `text`                              | No                    | Log format: text, json |
-| `--timeout`     | `30s`                               | No                    | HTTP request timeout   |
-| `--clear`       | `false`                             | No                    | Clear upload history   |
+By default, the client picks up all file formats the device supports. Use `--device-format` to restrict to a specific one (e.g. `--device-format columbus-csv`).
+
+| Flag              | Default                             | Required              | Description                          |
+| ----------------- | ----------------------------------- | --------------------- | ------------------------------------ |
+| `--server-url`    |                                     | Yes                   | Tracksync server URL                 |
+| `--token`         |                                     | Yes if not token-file | Auth token inline                    |
+| `--token-file`    |                                     | Yes if not token      | Auth token from file                 |
+| `--device-type`   |                                     | Yes                   | GPS device type                      |
+| `--device-format` |                                     | No                    | Restrict to a specific device format |
+| `--device-id`     |                                     | Yes                   | Device identifier                    |
+| `--mount-point`   |                                     | Yes                   | Device mount point                   |
+| `--state-db`      | `~/.local/share/tracksync/state.db` | No                    | Client state database                |
+| `--log-format`    | `text`                              | No                    | Log format: text, json               |
+| `--timeout`       | `30s`                               | No                    | HTTP request timeout                 |
+| `--clear`         | `false`                             | No                    | Clear upload history                 |
 
 ## API
 
-| Endpoint  | Method | Auth         | Description                                 |
-| --------- | ------ | ------------ | ------------------------------------------- |
-| `/health` | GET    | No           | Liveness check                              |
-| `/upload` | POST   | Bearer token | Upload a GPX file (multipart, field `file`) |
+| Endpoint  | Method | Auth         | Description                                   |
+| --------- | ------ | ------------ | --------------------------------------------- |
+| `/health` | GET    | No           | Liveness check                                |
+| `/upload` | POST   | Bearer token | Upload a track file (multipart, field `file`) |
 
-The `/upload` endpoint also requires `X-Device-ID` and optionally `X-Client-Host` headers.
+The `/upload` endpoint requires `X-Device-ID` and `X-Source-Format` headers, and optionally `X-Client-Host`.
 
 ## NixOS module
 
@@ -146,6 +150,7 @@ Import the module and configure:
     devices = [{
       deviceId = "my-device";
       deviceType = "columbus-p10-pro";
+      # deviceFormat = "columbus-csv";  # optional, omit to find all supported formats
       usbVendorId = "xxxx";     # from lsusb
       usbProductId = "xxxx";    # from lsusb
       diskById = "usb-xxxx-part1";  # from ls /dev/disk/by-id/
@@ -170,21 +175,35 @@ The sync service runs outside of a desktop session, so it needs a polkit rule in
 }
 ```
 
-When the device is plugged in, a systemd service automatically mounts it, syncs all GPX files, and sends a desktop notification with the result.
+When the device is plugged in, a systemd service automatically mounts it, syncs all track files, and sends a desktop notification with the result.
+
+## Format conversion
+
+The server automatically converts between file formats to preserve the most data. Each device declares the formats it can produce, and each target declares the formats it accepts. The server parses the source file into a universal track model, then serializes to the target format that preserves the most fields.
+
+For example, when a Columbus P-10 Pro is configured to output CSV (which includes speed and heading), the server converts to GeoJSON before forwarding to Dawarich, since GeoJSON can represent these fields while GPX 1.1 cannot.
+
+### Supported formats
+
+| Format         | Type              | Speed | Heading | Elevation | Satellites | DOP |
+| -------------- | ----------------- | ----- | ------- | --------- | ---------- | --- |
+| `gpx_1.1`      | Parse + Serialize | No    | No      | Yes       | Yes        | Yes |
+| `columbus-csv` | Parse             | Yes   | Yes     | Yes       | No         | No  |
+| `geojson`      | Serialize         | Yes   | Yes     | Yes       | Yes        | Yes |
 
 ## Supported targets
 
-| Type       | Service                           |
-| ---------- | --------------------------------- |
-| `dawarich` | [Dawarich](https://dawarich.app/) |
+| Type       | Service                           | Accepted formats     |
+| ---------- | --------------------------------- | -------------------- |
+| `dawarich` | [Dawarich](https://dawarich.app/) | `gpx_1.1`, `geojson` |
 
 Adding a new target requires implementing the `Target` interface in `server/internal/target/`.
 
 ## Supported devices
 
-| Type               | Device            |
-| ------------------ | ----------------- |
-| `columbus-p10-pro` | Columbus P-10 Pro |
+| Type               | Device            | Supported formats         |
+| ------------------ | ----------------- | ------------------------- |
+| `columbus-p10-pro` | Columbus P-10 Pro | `gpx_1.1`, `columbus-csv` |
 
 Adding a new device type requires implementing the `Device` interface in `tracksync/internal/device/`.
 

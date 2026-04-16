@@ -100,13 +100,14 @@ func TestUpload_Created(t *testing.T) {
 		assert.Equal(t, "Bearer tok", r.Header.Get("Authorization"))
 		assert.Equal(t, "dev-1", r.Header.Get("X-Device-ID"))
 		assert.Equal(t, "myhost", r.Header.Get("X-Client-Host"))
+		assert.Equal(t, "gpx_1.1", r.Header.Get("X-Source-Format"))
 		w.WriteHeader(http.StatusCreated)
 		_, _ = fmt.Fprintln(w, "uploaded")
 	}))
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	status, err := Upload(client, ts.URL, "tok", "dev-1", "myhost", "track.gpx", []byte("<gpx/>"))
+	status, err := Upload(client, ts.URL, "tok", "dev-1", "myhost", "gpx_1.1", "track.gpx", []byte("<gpx/>"))
 	require.NoError(t, err)
 	assert.Equal(t, "uploaded", status)
 }
@@ -119,7 +120,7 @@ func TestUpload_Duplicate(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	status, err := Upload(client, ts.URL, "tok", "dev", "host", "f.gpx", []byte("data"))
+	status, err := Upload(client, ts.URL, "tok", "dev", "host", "gpx_1.1", "f.gpx", []byte("data"))
 	require.NoError(t, err)
 	assert.Equal(t, "duplicate (server)", status)
 }
@@ -132,7 +133,7 @@ func TestUpload_ServerError(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	_, err := Upload(client, ts.URL, "tok", "dev", "host", "f.gpx", []byte("data"))
+	_, err := Upload(client, ts.URL, "tok", "dev", "host", "gpx_1.1", "f.gpx", []byte("data"))
 	assert.Error(t, err)
 }
 
