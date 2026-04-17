@@ -1,6 +1,7 @@
 package target
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -13,7 +14,7 @@ type Target interface {
 	// ordered by preference (most preferred first).
 	AcceptedFormats() []string
 	// Send forwards a GPS track file to the target.
-	Send(filename string, data []byte) error
+	Send(ctx context.Context, filename string, data []byte) error
 }
 
 // Constructor creates a new Target from the given config.

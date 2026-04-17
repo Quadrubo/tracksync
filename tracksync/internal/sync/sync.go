@@ -2,6 +2,7 @@ package sync
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -81,7 +82,7 @@ const (
 	StatusDuplicate                     // server already had this file
 )
 
-func Upload(client *http.Client, serverURL, token, deviceID, sourceFormat, filename string, data []byte) (UploadStatus, error) {
+func Upload(ctx context.Context, client *http.Client, serverURL, token, deviceID, sourceFormat, filename string, data []byte) (UploadStatus, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", filename)
@@ -95,7 +96,7 @@ func Upload(client *http.Client, serverURL, token, deviceID, sourceFormat, filen
 		return 0, fmt.Errorf("closing form: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", serverURL+"/upload", &buf)
+	req, err := http.NewRequestWithContext(ctx, "POST", serverURL+"/upload", &buf)
 	if err != nil {
 		return 0, fmt.Errorf("creating request: %w", err)
 	}
@@ -133,7 +134,7 @@ type Summary struct {
 }
 
 // SyncFiles syncs a list of found files to the server.
-func SyncFiles(db *sql.DB, client *http.Client, serverURL, token, deviceID string, files []device.FoundFile) Summary {
+func SyncFiles(ctx context.Context, db *sql.DB, client *http.Client, serverURL, token, deviceID string, files []device.FoundFile) Summary {
 	var summary Summary
 
 	for _, ff := range files {
@@ -160,7 +161,7 @@ func SyncFiles(db *sql.DB, client *http.Client, serverURL, token, deviceID strin
 			continue
 		}
 
-		status, err := Upload(client, serverURL, token, deviceID, ff.Format, name, data)
+		status, err := Upload(ctx, client, serverURL, token, deviceID, ff.Format, name, data)
 		if err != nil {
 			slog.Error("upload failed", "file", name, "error", err)
 			summary.Errors++

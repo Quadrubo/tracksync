@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"time"
 
@@ -122,6 +124,9 @@ func main() {
 		return
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	httpClient := &http.Client{Timeout: *timeout}
 	slog.Info("starting sync",
 		"device", *deviceID,
@@ -129,7 +134,7 @@ func main() {
 		"files", len(files),
 	)
 
-	summary := sync.SyncFiles(db, httpClient, *serverURL, token, *deviceID, files)
+	summary := sync.SyncFiles(ctx, db, httpClient, *serverURL, token, *deviceID, files)
 
 	slog.Info("sync complete",
 		"uploaded", summary.Uploaded,

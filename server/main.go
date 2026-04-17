@@ -67,8 +67,10 @@ func main() {
 
 	addr := ":" + cfg.Port
 	httpServer := &http.Server{
-		Addr:    addr,
-		Handler: srv.Handler(),
+		Addr:         addr,
+		Handler:      srv.Handler(),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: cfg.TargetTimeout + 10*time.Second,
 	}
 
 	go func() {

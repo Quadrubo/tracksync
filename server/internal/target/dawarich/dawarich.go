@@ -2,6 +2,7 @@ package dawarich
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -37,7 +38,7 @@ type Dawarich struct {
 func (d *Dawarich) Type() string                { return "dawarich" }
 func (d *Dawarich) AcceptedFormats() []string    { return []string{"geojson", "gpx_1.1"} }
 
-func (d *Dawarich) Send(filename string, data []byte) error {
+func (d *Dawarich) Send(ctx context.Context, filename string, data []byte) error {
 	apiKey, err := d.readAPIKey()
 	if err != nil {
 		return fmt.Errorf("reading API key: %w", err)
@@ -57,7 +58,7 @@ func (d *Dawarich) Send(filename string, data []byte) error {
 	}
 
 	url := d.cfg.URL + "/api/v1/imports"
-	req, err := http.NewRequest("POST", url, &buf)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, &buf)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
