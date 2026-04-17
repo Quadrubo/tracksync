@@ -81,7 +81,7 @@ const (
 	StatusDuplicate                     // server already had this file
 )
 
-func Upload(client *http.Client, serverURL, token, deviceID, hostname, sourceFormat, filename string, data []byte) (UploadStatus, error) {
+func Upload(client *http.Client, serverURL, token, deviceID, sourceFormat, filename string, data []byte) (UploadStatus, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", filename)
@@ -102,7 +102,6 @@ func Upload(client *http.Client, serverURL, token, deviceID, hostname, sourceFor
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Device-ID", deviceID)
-	req.Header.Set("X-Client-Host", hostname)
 	req.Header.Set("X-Source-Format", sourceFormat)
 
 	resp, err := client.Do(req)
@@ -134,7 +133,7 @@ type Summary struct {
 }
 
 // SyncFiles syncs a list of found files to the server.
-func SyncFiles(db *sql.DB, client *http.Client, serverURL, token, deviceID, hostname string, files []device.FoundFile) Summary {
+func SyncFiles(db *sql.DB, client *http.Client, serverURL, token, deviceID string, files []device.FoundFile) Summary {
 	var summary Summary
 
 	for _, ff := range files {
@@ -161,7 +160,7 @@ func SyncFiles(db *sql.DB, client *http.Client, serverURL, token, deviceID, host
 			continue
 		}
 
-		status, err := Upload(client, serverURL, token, deviceID, hostname, ff.Format, name, data)
+		status, err := Upload(client, serverURL, token, deviceID, ff.Format, name, data)
 		if err != nil {
 			slog.Error("upload failed", "file", name, "error", err)
 			summary.Errors++

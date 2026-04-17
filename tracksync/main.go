@@ -122,7 +122,6 @@ func main() {
 		return
 	}
 
-	hostname, _ := os.Hostname()
 	httpClient := &http.Client{Timeout: *timeout}
 	slog.Info("starting sync",
 		"device", *deviceID,
@@ -130,7 +129,7 @@ func main() {
 		"files", len(files),
 	)
 
-	summary := sync.SyncFiles(db, httpClient, *serverURL, token, *deviceID, hostname, files)
+	summary := sync.SyncFiles(db, httpClient, *serverURL, token, *deviceID, files)
 
 	slog.Info("sync complete",
 		"uploaded", summary.Uploaded,

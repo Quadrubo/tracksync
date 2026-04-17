@@ -125,7 +125,7 @@ By default, the client picks up all file formats the device supports. Use `--dev
 | `/health` | GET    | No           | Liveness check                                |
 | `/upload` | POST   | Bearer token | Upload a track file (multipart, field `file`) |
 
-The `/upload` endpoint requires `X-Device-ID` and `X-Source-Format` headers, and optionally `X-Client-Host`.
+The `/upload` endpoint requires `X-Device-ID` and `X-Source-Format` headers.
 
 ## NixOS module
 
