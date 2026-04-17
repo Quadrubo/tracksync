@@ -38,12 +38,14 @@ let
 
                 # Wait for device to be mounted or udisks2 to be ready (up to 60s)
                 MOUNT=""
+                SELF_MOUNTED=0
                 for i in $(seq 1 60); do
                   MOUNT=$(${pkgs.util-linux}/bin/findmnt -n -o TARGET "$DEV" 2>/dev/null || true)
                   [ -n "$MOUNT" ] && break
                   if ${pkgs.udisks2}/bin/udisksctl info -b "$DEV" >/dev/null 2>&1; then
                     ${pkgs.udisks2}/bin/udisksctl mount -b "$DEV" --no-user-interaction 2>&1
                     MOUNT=$(${pkgs.util-linux}/bin/findmnt -n -o TARGET "$DEV" 2>/dev/null || true)
+                    SELF_MOUNTED=1
                     break
                   fi
                   sleep 1
@@ -69,6 +71,11 @@ let
                 UPLOADED=$(echo "$SUMMARY" | ${pkgs.jq}/bin/jq -r '.uploaded // 0')
                 SKIPPED=$(echo "$SUMMARY" | ${pkgs.jq}/bin/jq -r '.skipped // 0')
                 ERRORS=$(echo "$SUMMARY" | ${pkgs.jq}/bin/jq -r '.errors // 0')
+
+                # Only unmount if we mounted it ourselves
+                if [ "$SELF_MOUNTED" = 1 ]; then
+                  ${pkgs.udisks2}/bin/udisksctl unmount -b "$DEV" --no-user-interaction 2>/dev/null || true
+                fi
 
                 if [ "$RC" = 0 ]; then
                   ${pkgs.libnotify}/bin/notify-send -i emblem-ok "Tracksync" "$UPLOADED uploaded, $SKIPPED skipped" 2>/dev/null || true

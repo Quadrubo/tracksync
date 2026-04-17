@@ -67,7 +67,7 @@ func (d *Dawarich) Send(filename string, data []byte) error {
 	if err != nil {
 		return fmt.Errorf("sending to dawarich: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)

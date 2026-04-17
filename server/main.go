@@ -56,7 +56,7 @@ func main() {
 		slog.Error("failed to open database", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := server.InitDB(db); err != nil {
 		slog.Error("failed to init database", "error", err)

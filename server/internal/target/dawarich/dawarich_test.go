@@ -50,14 +50,14 @@ func TestSend_PostsToImportsEndpoint(t *testing.T) {
 		cfg:    target.Config{URL: ts.URL, APIKey: "k"},
 		client: &http.Client{Timeout: 5 * time.Second},
 	}
-	d.Send("f.gpx", []byte("data"))
+	_ = d.Send("f.gpx", []byte("data"))
 	assert.Equal(t, "/api/v1/imports", gotPath)
 }
 
 func TestSend_ErrorOnNon2xx(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("something broke"))
+		_, _ = w.Write([]byte("something broke"))
 	}))
 	defer ts.Close()
 
@@ -80,7 +80,7 @@ func TestReadAPIKey_Inline(t *testing.T) {
 
 func TestReadAPIKey_File(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "api-key")
-	os.WriteFile(path, []byte("  file-key\n"), 0600)
+	require.NoError(t, os.WriteFile(path, []byte("  file-key\n"), 0600))
 
 	d := &Dawarich{cfg: target.Config{APIKeyFile: path}}
 	key, err := d.readAPIKey()
