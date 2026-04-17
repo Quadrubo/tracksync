@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"fmt"
 	"mime/multipart"
@@ -24,7 +25,7 @@ type mockTarget struct {
 
 func (m *mockTarget) Type() string             { return "mock" }
 func (m *mockTarget) AcceptedFormats() []string { return []string{"gpx_1.1", "geojson"} }
-func (m *mockTarget) Send(filename string, data []byte) error { return m.err }
+func (m *mockTarget) Send(_ context.Context, filename string, data []byte) error { return m.err }
 
 type countTarget struct {
 	count *int
@@ -32,7 +33,7 @@ type countTarget struct {
 
 func (c *countTarget) Type() string             { return "count" }
 func (c *countTarget) AcceptedFormats() []string { return []string{"gpx_1.1", "geojson"} }
-func (c *countTarget) Send(filename string, data []byte) error {
+func (c *countTarget) Send(_ context.Context, filename string, data []byte) error {
 	*c.count++
 	return nil
 }

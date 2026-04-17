@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -107,7 +108,7 @@ func TestUpload_Created(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	status, err := Upload(client, ts.URL, "tok", "dev-1", "gpx_1.1", "track.gpx", []byte("<gpx/>"))
+	status, err := Upload(context.Background(), client, ts.URL, "tok", "dev-1", "gpx_1.1", "track.gpx", []byte("<gpx/>"))
 	require.NoError(t, err)
 	assert.Equal(t, StatusUploaded, status)
 }
@@ -120,7 +121,7 @@ func TestUpload_Duplicate(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	status, err := Upload(client, ts.URL, "tok", "dev", "gpx_1.1", "f.gpx", []byte("data"))
+	status, err := Upload(context.Background(), client, ts.URL, "tok", "dev", "gpx_1.1", "f.gpx", []byte("data"))
 	require.NoError(t, err)
 	assert.Equal(t, StatusDuplicate, status)
 }
@@ -133,7 +134,7 @@ func TestUpload_ServerError(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	_, err := Upload(client, ts.URL, "tok", "dev", "gpx_1.1", "f.gpx", []byte("data"))
+	_, err := Upload(context.Background(), client, ts.URL, "tok", "dev", "gpx_1.1", "f.gpx", []byte("data"))
 	assert.Error(t, err)
 }
 
@@ -149,7 +150,7 @@ func TestSyncFiles_Uploaded(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "track.gpx"), []byte("<gpx/>"), 0644))
 
 	files := []device.FoundFile{{Path: filepath.Join(dir, "track.gpx"), Format: "gpx_1.1"}}
-	summary := SyncFiles(db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
+	summary := SyncFiles(context.Background(), db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
 
 	assert.Equal(t, 1, summary.Uploaded)
 	assert.Equal(t, 0, summary.Duplicate)
@@ -170,7 +171,7 @@ func TestSyncFiles_Duplicate(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "track.gpx"), []byte("<gpx/>"), 0644))
 
 	files := []device.FoundFile{{Path: filepath.Join(dir, "track.gpx"), Format: "gpx_1.1"}}
-	summary := SyncFiles(db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
+	summary := SyncFiles(context.Background(), db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
 
 	assert.Equal(t, 0, summary.Uploaded)
 	assert.Equal(t, 1, summary.Duplicate)
@@ -194,7 +195,7 @@ func TestSyncFiles_SkippedClientSide(t *testing.T) {
 	require.NoError(t, RecordUpload(db, SHA256Hex(data), "track.gpx", "dev"))
 
 	files := []device.FoundFile{{Path: filepath.Join(dir, "track.gpx"), Format: "gpx_1.1"}}
-	summary := SyncFiles(db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
+	summary := SyncFiles(context.Background(), db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
 
 	assert.Equal(t, 0, summary.Uploaded)
 	assert.Equal(t, 0, summary.Duplicate)
@@ -214,7 +215,7 @@ func TestSyncFiles_UploadError(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "track.gpx"), []byte("<gpx/>"), 0644))
 
 	files := []device.FoundFile{{Path: filepath.Join(dir, "track.gpx"), Format: "gpx_1.1"}}
-	summary := SyncFiles(db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
+	summary := SyncFiles(context.Background(), db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
 
 	assert.Equal(t, 0, summary.Uploaded)
 	assert.Equal(t, 0, summary.Duplicate)
@@ -251,7 +252,7 @@ func TestSyncFiles_MixedResults(t *testing.T) {
 		{Path: filepath.Join(dir, "dup.gpx"), Format: "gpx_1.1"},
 		{Path: filepath.Join(dir, "skip.gpx"), Format: "gpx_1.1"},
 	}
-	summary := SyncFiles(db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
+	summary := SyncFiles(context.Background(), db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
 
 	assert.Equal(t, 1, summary.Uploaded)
 	assert.Equal(t, 1, summary.Duplicate)

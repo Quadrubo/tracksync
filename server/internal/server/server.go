@@ -175,7 +175,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	if err := t.Send(newFilename, convertedData); err != nil {
+	if err := t.Send(r.Context(), newFilename, convertedData); err != nil {
 		slog.Error("target failed", "target", t.Type(), "source", header.Filename, "file", newFilename, "error", err)
 		http.Error(w, "target forward failed", http.StatusBadGateway)
 		return

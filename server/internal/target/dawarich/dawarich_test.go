@@ -1,6 +1,7 @@
 package dawarich
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +32,7 @@ func TestSend_Success(t *testing.T) {
 		client: &http.Client{Timeout: 5 * time.Second},
 	}
 
-	require.NoError(t, d.Send("track.gpx", []byte("<gpx>data</gpx>")))
+	require.NoError(t, d.Send(context.Background(), "track.gpx", []byte("<gpx>data</gpx>")))
 	assert.Equal(t, "Bearer test-key", gotAuth)
 	assert.True(t, strings.HasPrefix(gotContentType, "multipart/form-data"))
 	assert.Contains(t, gotBody, "track.gpx")
@@ -50,7 +51,7 @@ func TestSend_PostsToImportsEndpoint(t *testing.T) {
 		cfg:    target.Config{URL: ts.URL, APIKey: "k"},
 		client: &http.Client{Timeout: 5 * time.Second},
 	}
-	_ = d.Send("f.gpx", []byte("data"))
+	_ = d.Send(context.Background(), "f.gpx", []byte("data"))
 	assert.Equal(t, "/api/v1/imports", gotPath)
 }
 
@@ -66,7 +67,7 @@ func TestSend_ErrorOnNon2xx(t *testing.T) {
 		client: &http.Client{Timeout: 5 * time.Second},
 	}
 
-	err := d.Send("f.gpx", []byte("data"))
+	err := d.Send(context.Background(), "f.gpx", []byte("data"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "500")
 }
