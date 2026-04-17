@@ -15,13 +15,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-type Summary struct {
-	Uploaded int      `json:"uploaded"`
-	Skipped  int      `json:"skipped"`
-	Errors   int      `json:"errors"`
-	Files    []string `json:"files,omitempty"`
-}
-
 func main() {
 	serverURL := flag.String("server-url", "", "sync server URL (required)")
 	tokenFlag := flag.String("token", "", "auth token (inline)")
@@ -123,11 +116,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	summary := Summary{}
-
 	if len(files) == 0 {
 		slog.Info("no files found", "device", *deviceID)
-		writeSummary(summary)
+		writeSummary(sync.Summary{})
 		return
 	}
 
@@ -139,49 +130,11 @@ func main() {
 		"files", len(files),
 	)
 
-	for _, ff := range files {
-		name := filepath.Base(ff.Path)
-
-		data, err := os.ReadFile(ff.Path)
-		if err != nil {
-			slog.Error("failed to read file", "file", name, "error", err)
-			summary.Errors++
-			continue
-		}
-
-		hash := sync.SHA256Hex(data)
-
-		uploaded, err := sync.AlreadyUploaded(db, hash)
-		if err != nil {
-			slog.Error("failed to check upload state", "file", name, "error", err)
-			summary.Errors++
-			continue
-		}
-		if uploaded {
-			slog.Debug("skipped", "file", name, "reason", "already uploaded")
-			summary.Skipped++
-			continue
-		}
-
-		status, err := sync.Upload(httpClient, *serverURL, token, *deviceID, hostname, ff.Format, name, data)
-		if err != nil {
-			slog.Error("upload failed", "file", name, "error", err)
-			summary.Errors++
-			continue
-		}
-
-		if err := sync.RecordUpload(db, hash, name, *deviceID); err != nil {
-			slog.Error("failed to record upload", "file", name, "error", err)
-			summary.Errors++
-			continue
-		}
-		slog.Info("uploaded", "file", name, "status", status)
-		summary.Uploaded++
-		summary.Files = append(summary.Files, name)
-	}
+	summary := sync.SyncFiles(db, httpClient, *serverURL, token, *deviceID, hostname, files)
 
 	slog.Info("sync complete",
 		"uploaded", summary.Uploaded,
+		"duplicate", summary.Duplicate,
 		"skipped", summary.Skipped,
 		"errors", summary.Errors,
 	)
@@ -194,7 +147,7 @@ func main() {
 }
 
 // writeSummary outputs the summary as JSON to stdout for machine consumption.
-func writeSummary(s Summary) {
+func writeSummary(s sync.Summary) {
 	_ = json.NewEncoder(os.Stdout).Encode(s)
 }
 

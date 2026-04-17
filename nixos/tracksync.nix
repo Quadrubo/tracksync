@@ -70,6 +70,7 @@ let
                   ${lib.optionalString (cfg.stateDB != null) "--state-db \"${cfg.stateDB}\""}) && RC=0 || RC=$?
 
                 UPLOADED=$(echo "$SUMMARY" | ${pkgs.jq}/bin/jq -r '.uploaded // 0')
+                DUPLICATE=$(echo "$SUMMARY" | ${pkgs.jq}/bin/jq -r '.duplicate // 0')
                 SKIPPED=$(echo "$SUMMARY" | ${pkgs.jq}/bin/jq -r '.skipped // 0')
                 ERRORS=$(echo "$SUMMARY" | ${pkgs.jq}/bin/jq -r '.errors // 0')
 
@@ -79,9 +80,9 @@ let
                 fi
 
                 if [ "$RC" = 0 ]; then
-                  ${pkgs.libnotify}/bin/notify-send -i emblem-ok "Tracksync" "$UPLOADED uploaded, $SKIPPED skipped" 2>/dev/null || true
+                  ${pkgs.libnotify}/bin/notify-send -i emblem-ok "Tracksync" "$UPLOADED uploaded, $DUPLICATE duplicate, $SKIPPED skipped" 2>/dev/null || true
                 else
-                  ${pkgs.libnotify}/bin/notify-send -i dialog-error "Tracksync" "$UPLOADED uploaded, $SKIPPED skipped, $ERRORS failed" 2>/dev/null || true
+                  ${pkgs.libnotify}/bin/notify-send -i dialog-error "Tracksync" "$UPLOADED uploaded, $DUPLICATE duplicate, $SKIPPED skipped, $ERRORS failed" 2>/dev/null || true
                   exit 1
                 fi
               '';

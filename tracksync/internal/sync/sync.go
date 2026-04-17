@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Quadrubo/tracksync/tracksync/internal/device"
 	"github.com/Quadrubo/tracksync/tracksync/internal/migrations"
 )
 
@@ -71,23 +73,31 @@ func ReadToken(path string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func Upload(client *http.Client, serverURL, token, deviceID, hostname, sourceFormat, filename string, data []byte) (string, error) {
+// UploadStatus represents the outcome of an upload attempt.
+type UploadStatus int
+
+const (
+	StatusUploaded  UploadStatus = iota // server accepted as new
+	StatusDuplicate                     // server already had this file
+)
+
+func Upload(client *http.Client, serverURL, token, deviceID, hostname, sourceFormat, filename string, data []byte) (UploadStatus, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
-		return "", fmt.Errorf("creating form: %w", err)
+		return 0, fmt.Errorf("creating form: %w", err)
 	}
 	if _, err := part.Write(data); err != nil {
-		return "", fmt.Errorf("writing form: %w", err)
+		return 0, fmt.Errorf("writing form: %w", err)
 	}
 	if err := writer.Close(); err != nil {
-		return "", fmt.Errorf("closing form: %w", err)
+		return 0, fmt.Errorf("closing form: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", serverURL+"/upload", &buf)
 	if err != nil {
-		return "", fmt.Errorf("creating request: %w", err)
+		return 0, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -97,7 +107,7 @@ func Upload(client *http.Client, serverURL, token, deviceID, hostname, sourceFor
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("sending request: %w", err)
+		return 0, fmt.Errorf("sending request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -106,10 +116,74 @@ func Upload(client *http.Client, serverURL, token, deviceID, hostname, sourceFor
 
 	switch resp.StatusCode {
 	case http.StatusCreated:
-		return "uploaded", nil
+		return StatusUploaded, nil
 	case http.StatusOK:
-		return "duplicate (server)", nil
+		return StatusDuplicate, nil
 	default:
-		return "", fmt.Errorf("server returned %d: %s", resp.StatusCode, status)
+		return 0, fmt.Errorf("server returned %d: %s", resp.StatusCode, status)
 	}
+}
+
+// Summary holds the results of a sync operation.
+type Summary struct {
+	Uploaded  int      `json:"uploaded"`
+	Duplicate int      `json:"duplicate"`
+	Skipped   int      `json:"skipped"`
+	Errors    int      `json:"errors"`
+	Files     []string `json:"files,omitempty"`
+}
+
+// SyncFiles syncs a list of found files to the server.
+func SyncFiles(db *sql.DB, client *http.Client, serverURL, token, deviceID, hostname string, files []device.FoundFile) Summary {
+	var summary Summary
+
+	for _, ff := range files {
+		name := filepath.Base(ff.Path)
+
+		data, err := os.ReadFile(ff.Path)
+		if err != nil {
+			slog.Error("failed to read file", "file", name, "error", err)
+			summary.Errors++
+			continue
+		}
+
+		hash := SHA256Hex(data)
+
+		uploaded, err := AlreadyUploaded(db, hash)
+		if err != nil {
+			slog.Error("failed to check upload state", "file", name, "error", err)
+			summary.Errors++
+			continue
+		}
+		if uploaded {
+			slog.Debug("skipped", "file", name, "reason", "already uploaded")
+			summary.Skipped++
+			continue
+		}
+
+		status, err := Upload(client, serverURL, token, deviceID, hostname, ff.Format, name, data)
+		if err != nil {
+			slog.Error("upload failed", "file", name, "error", err)
+			summary.Errors++
+			continue
+		}
+
+		if err := RecordUpload(db, hash, name, deviceID); err != nil {
+			slog.Error("failed to record upload", "file", name, "error", err)
+			summary.Errors++
+			continue
+		}
+
+		switch status {
+		case StatusUploaded:
+			slog.Info("uploaded", "file", name)
+			summary.Uploaded++
+			summary.Files = append(summary.Files, name)
+		case StatusDuplicate:
+			slog.Info("duplicate", "file", name, "reason", "already on server")
+			summary.Duplicate++
+		}
+	}
+
+	return summary
 }
