@@ -49,12 +49,7 @@ func (s *Server) authenticate(r *http.Request) *config.Client {
 		return nil
 	}
 	for i := range s.cfg.Clients {
-		t, err := s.cfg.Clients[i].ResolveToken()
-		if err != nil {
-			slog.Warn("cannot read token for client", "client", s.cfg.Clients[i].ID, "error", err)
-			continue
-		}
-		if subtle.ConstantTimeCompare([]byte(t), []byte(token)) == 1 {
+		if subtle.ConstantTimeCompare([]byte(s.cfg.Clients[i].Token), []byte(token)) == 1 {
 			return &s.cfg.Clients[i]
 		}
 	}

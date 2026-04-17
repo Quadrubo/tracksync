@@ -105,6 +105,15 @@ func Load(envFile string) (*Config, error) {
 		return nil, err
 	}
 
+	for i := range cfg.Clients {
+		c := &cfg.Clients[i]
+		t, err := c.ResolveToken()
+		if err != nil {
+			return nil, fmt.Errorf("config: reading token for client %q: %w", c.ID, err)
+		}
+		c.Token = t
+	}
+
 	return cfg, nil
 }
 
