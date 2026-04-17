@@ -139,6 +139,30 @@ func TestUpload_TargetFailure(t *testing.T) {
 	assert.Equal(t, http.StatusBadGateway, rec.Code)
 }
 
+func TestUpload_RetryAfterTargetFailure(t *testing.T) {
+	mock := &mockTarget{err: fmt.Errorf("connection refused")}
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	require.NoError(t, InitDB(db))
+	t.Cleanup(func() { _ = db.Close() })
+
+	cfg := &config.Config{
+		Clients: []config.Client{
+			{ID: "test-client", Token: "valid-token", AllowedDeviceIDs: []string{"dev-1"}},
+		},
+	}
+	srv := New(cfg, db, map[string]target.Target{"dev-1": mock})
+
+	// First attempt fails
+	rec1 := serveUpload(srv, "valid-token", "dev-1", "gpx_1.1", "track.gpx", validGPX)
+	require.Equal(t, http.StatusBadGateway, rec1.Code)
+
+	// Fix the target and retry - should succeed, not be treated as duplicate
+	mock.err = nil
+	rec2 := serveUpload(srv, "valid-token", "dev-1", "gpx_1.1", "track.gpx", validGPX)
+	assert.Equal(t, http.StatusCreated, rec2.Code)
+}
+
 func TestUpload_NoTargetForDevice(t *testing.T) {
 	srv := setupTestServer(t, nil)
 	rec := serveUpload(srv, "limited-token", "dev-2", "gpx_1.1", "track.gpx", validGPX)

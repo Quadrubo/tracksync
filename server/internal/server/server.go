@@ -86,6 +86,21 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate target exists for device
+	t, ok := s.targets[deviceID]
+	if !ok {
+		slog.Error("no target configured", "device", deviceID)
+		http.Error(w, "no target for device", http.StatusBadRequest)
+		return
+	}
+
+	// Validate source format
+	sourceFormat := r.Header.Get("X-Source-Format")
+	if sourceFormat == "" {
+		http.Error(w, "missing X-Source-Format header", http.StatusBadRequest)
+		return
+	}
+
 	// Parse multipart form
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		http.Error(w, "invalid multipart form", http.StatusBadRequest)
@@ -104,36 +119,34 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Deduplicate
+	// Deduplicate - claim the hash in a transaction before forwarding to
+	// the target. On failure the transaction is rolled back so retries work.
 	hash := sha256.Sum256(data)
 	hashHex := hex.EncodeToString(hash[:])
 
-	var exists bool
-	err = s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM uploads WHERE sha256 = ?)", hashHex).Scan(&exists)
+	tx, err := s.db.Begin()
 	if err != nil {
 		slog.Error("database error", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if exists {
+	defer func() { _ = tx.Rollback() }()
+
+	result, err := tx.Exec(
+		"INSERT OR IGNORE INTO uploads (sha256, device_id, client_id, filename, uploaded_at) VALUES (?, ?, ?, ?, ?)",
+		hashHex, deviceID, client.ID, header.Filename, time.Now().UTC(),
+	)
+	if err != nil {
+		slog.Error("database error", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
 		slog.Info("duplicate", "file", header.Filename, "sha256", hashHex[:12], "client", client.ID)
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintln(w, "duplicate")
-		return
-	}
-
-	// Forward to target
-	t, ok := s.targets[deviceID]
-	if !ok {
-		slog.Error("no target configured", "device", deviceID)
-		http.Error(w, "no target for device", http.StatusBadRequest)
-		return
-	}
-
-	// Convert format if needed
-	sourceFormat := r.Header.Get("X-Source-Format")
-	if sourceFormat == "" {
-		http.Error(w, "missing X-Source-Format header", http.StatusBadRequest)
 		return
 	}
 
@@ -165,22 +178,9 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Record successful upload
-	result, err := s.db.Exec(
-		"INSERT OR IGNORE INTO uploads (sha256, device_id, client_id, filename, uploaded_at) VALUES (?, ?, ?, ?, ?)",
-		hashHex, deviceID, client.ID, header.Filename, time.Now().UTC(),
-	)
-	if err != nil {
-		slog.Error("failed to record upload", "error", err)
+	if err := tx.Commit(); err != nil {
+		slog.Error("failed to commit upload", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		slog.Info("duplicate (concurrent)", "source", header.Filename, "file", newFilename, "sha256", hashHex[:12], "client", client.ID)
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintln(w, "duplicate")
 		return
 	}
 
