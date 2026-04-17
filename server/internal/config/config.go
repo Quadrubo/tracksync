@@ -41,11 +41,12 @@ func validateConfig(sl validator.StructLevel) {
 }
 
 type Config struct {
-	Port          string
-	StateDB       string
-	TargetTimeout time.Duration
-	Accounts      []Account `validate:"required,dive"`
-	Clients       []Client  `validate:"required,dive"`
+	Port                  string
+	StateDB               string
+	TargetTimeout         time.Duration
+	PassthroughConversion bool
+	Accounts              []Account `validate:"required,dive"`
+	Clients               []Client  `validate:"required,dive"`
 }
 
 type Account struct {
@@ -84,11 +85,12 @@ func Load(envFile string) (*Config, error) {
 	}
 
 	cfg := &Config{
-		Port:          v.GetString("PORT"),
-		StateDB:       v.GetString("STATE_DB"),
-		TargetTimeout: targetTimeout,
-		Accounts:      parseGroup[Account](v, "ACCOUNT", "DEVICE_ID"),
-		Clients:       parseGroup[Client](v, "CLIENT", "ID"),
+		Port:                  v.GetString("PORT"),
+		StateDB:               v.GetString("STATE_DB"),
+		TargetTimeout:         targetTimeout,
+		PassthroughConversion: v.GetBool("PASSTHROUGH_CONVERSION"),
+		Accounts:              parseGroup[Account](v, "ACCOUNT", "DEVICE_ID"),
+		Clients:               parseGroup[Client](v, "CLIENT", "ID"),
 	}
 
 	if err := cfg.validate(); err != nil {

@@ -63,6 +63,7 @@ let
                   --server-url "${cfg.serverUrl}" \
                   --token-file "${cfg.tokenFile}" \
                   --device-type "${device.deviceType}" \
+                  ${lib.optionalString (device.deviceFormat != null) "--device-format \"${device.deviceFormat}\""} \
                   --device-id "${device.deviceId}" \
                   --mount-point "$MOUNT" \
                   --log-format json \
@@ -134,6 +135,11 @@ in
               type = lib.types.str;
               default = "columbus-p10-pro";
               description = "Device type.";
+            };
+            deviceFormat = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = "Restrict to a specific file format (e.g. gpx_1.1, columbus-csv). Null means find all supported formats.";
             };
             usbVendorId = lib.mkOption {
               type = lib.types.str;

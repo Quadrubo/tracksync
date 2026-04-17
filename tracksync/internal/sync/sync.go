@@ -71,7 +71,7 @@ func ReadToken(path string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func Upload(client *http.Client, serverURL, token, deviceID, hostname, filename string, data []byte) (string, error) {
+func Upload(client *http.Client, serverURL, token, deviceID, hostname, sourceFormat, filename string, data []byte) (string, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", filename)
@@ -93,6 +93,7 @@ func Upload(client *http.Client, serverURL, token, deviceID, hostname, filename 
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Device-ID", deviceID)
 	req.Header.Set("X-Client-Host", hostname)
+	req.Header.Set("X-Source-Format", sourceFormat)
 
 	resp, err := client.Do(req)
 	if err != nil {

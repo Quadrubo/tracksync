@@ -27,6 +27,7 @@ func main() {
 	tokenFlag := flag.String("token", "", "auth token (inline)")
 	tokenFile := flag.String("token-file", "", "path to auth token file")
 	deviceType := flag.String("device-type", "", "device type, e.g. columbus-p10-pro (required)")
+	deviceFormat := flag.String("device-format", "", "restrict to a specific format, e.g. gpx, csv (optional)")
 	deviceID := flag.String("device-id", "", "device identifier (required)")
 	mountPoint := flag.String("mount-point", "", "device mount point (required)")
 	stateDB := flag.String("state-db", defaultStateDB(), "path to local SQLite state DB")
@@ -93,7 +94,30 @@ func main() {
 		os.Exit(1)
 	}
 
-	files, err := dev.FindFiles(*mountPoint)
+	// Determine which formats to search for
+	var formats []string
+	if *deviceFormat != "" {
+		supported := dev.SupportedFormats()
+		formatValid := false
+		for _, f := range supported {
+			if f == *deviceFormat {
+				formatValid = true
+				break
+			}
+		}
+		if !formatValid {
+			slog.Error("unsupported format for device",
+				"format", *deviceFormat,
+				"device", *deviceType,
+				"supported", supported,
+			)
+			os.Exit(1)
+		}
+		formats = []string{*deviceFormat}
+	}
+	// formats is nil when --device-format not specified → find all supported
+
+	files, err := dev.FindFiles(*mountPoint, formats)
 	if err != nil {
 		slog.Error("failed to find files", "error", err)
 		os.Exit(1)
@@ -115,10 +139,10 @@ func main() {
 		"files", len(files),
 	)
 
-	for _, path := range files {
-		name := filepath.Base(path)
+	for _, ff := range files {
+		name := filepath.Base(ff.Path)
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(ff.Path)
 		if err != nil {
 			slog.Error("failed to read file", "file", name, "error", err)
 			summary.Errors++
@@ -139,7 +163,7 @@ func main() {
 			continue
 		}
 
-		status, err := sync.Upload(httpClient, *serverURL, token, *deviceID, hostname, name, data)
+		status, err := sync.Upload(httpClient, *serverURL, token, *deviceID, hostname, ff.Format, name, data)
 		if err != nil {
 			slog.Error("upload failed", "file", name, "error", err)
 			summary.Errors++

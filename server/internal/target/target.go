@@ -9,6 +9,9 @@ import (
 type Target interface {
 	// Type returns the target type identifier (e.g. "dawarich").
 	Type() string
+	// AcceptedFormats returns the file formats this target can ingest,
+	// ordered by preference (most preferred first).
+	AcceptedFormats() []string
 	// Send forwards a GPS track file to the target.
 	Send(filename string, data []byte) error
 }
