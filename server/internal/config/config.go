@@ -153,6 +153,8 @@ func parseGroup[T any](v *viper.Viper, prefix, sentinel string) []T {
 					}
 					item.Field(j).Set(reflect.ValueOf(parts))
 				}
+			default:
+				panic(fmt.Sprintf("parseGroup: unsupported field type %s for %s.%s", f.Type.Kind(), rt.Name(), f.Name))
 			}
 		}
 		items = append(items, item.Interface().(T))
