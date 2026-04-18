@@ -17,7 +17,7 @@ func init() {
 // Format: INDEX,TAG,DATE,TIME,LATITUDE N/S,LONGITUDE E/W,HEIGHT,SPEED,HEADING
 // Example: 1,T,260417,110529,52.4194759N,13.3076437E,62,1.4,333
 //
-// - DATE is ddmmyy (UTC)
+// - DATE is yymmdd (UTC)
 // - TIME is hhmmss (UTC)
 // - LATITUDE: decimal degrees with N/S suffix
 // - LONGITUDE: decimal degrees with E/W suffix
@@ -79,7 +79,7 @@ func parseCSVRow(record []string, lineNum int) (Point, error) {
 	}
 	point.Lon = lon
 
-	// Parse date + time (ddmmyy + hhmmss, UTC)
+	// Parse date + time (yymmdd + hhmmss, UTC)
 	t, err := parseDateTime(record[2], record[3])
 	if err != nil {
 		return point, fmt.Errorf("row %d: datetime: %w", lineNum, err)
@@ -141,7 +141,7 @@ func parseCoordinate(s string) (float64, error) {
 	}
 }
 
-// parseDateTime parses ddmmyy + hhmmss into time.Time (UTC).
+// parseDateTime parses yymmdd + hhmmss into time.Time (UTC).
 func parseDateTime(dateStr, timeStr string) (time.Time, error) {
 	if len(dateStr) != 6 {
 		return time.Time{}, fmt.Errorf("expected 6-char date, got %q", dateStr)
@@ -150,19 +150,19 @@ func parseDateTime(dateStr, timeStr string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("expected 6-char time, got %q", timeStr)
 	}
 
-	day, err := strconv.Atoi(dateStr[0:2])
-	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid day in %q", dateStr)
-	}
-	month, err := strconv.Atoi(dateStr[2:4])
-	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid month in %q", dateStr)
-	}
-	year, err := strconv.Atoi(dateStr[4:6])
+	year, err := strconv.Atoi(dateStr[0:2])
 	if err != nil {
 		return time.Time{}, fmt.Errorf("invalid year in %q", dateStr)
 	}
 	year += 2000 // 2-digit year
+	month, err := strconv.Atoi(dateStr[2:4])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid month in %q", dateStr)
+	}
+	day, err := strconv.Atoi(dateStr[4:6])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid day in %q", dateStr)
+	}
 
 	hour, err := strconv.Atoi(timeStr[0:2])
 	if err != nil {
