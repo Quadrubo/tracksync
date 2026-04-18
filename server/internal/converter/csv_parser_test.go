@@ -24,7 +24,7 @@ func TestCSVParser_SampleData(t *testing.T) {
 	p := tracks[0].Segments[0].Points[0]
 	assert.InDelta(t, 52.5249440, p.Lat, 0.0000001)
 	assert.InDelta(t, 13.3693610, p.Lon, 0.0000001)
-	assert.Equal(t, time.Date(2017, 4, 26, 11, 5, 29, 0, time.UTC), *p.Time)
+	assert.Equal(t, time.Date(2026, 4, 17, 11, 5, 29, 0, time.UTC), *p.Time)
 	assert.InDelta(t, 38.0, *p.Elevation, 0.1)
 	assert.InDelta(t, 1.4/3.6, *p.Speed, 0.001) // km/h -> m/s
 	assert.InDelta(t, 333.0, *p.Course, 0.1)
@@ -32,7 +32,7 @@ func TestCSVParser_SampleData(t *testing.T) {
 
 func TestCSVParser_SouthWest(t *testing.T) {
 	data := `INDEX,TAG,DATE,TIME,LATITUDE N/S,LONGITUDE E/W,HEIGHT,SPEED,HEADING
-1,T,010120,120000,33.8688197S,151.2092955W,5,0.0,0
+1,T,200101,120000,33.8688197S,151.2092955W,5,0.0,0
 `
 	tracks, err := (&csvParser{}).Parse([]byte(data))
 	require.NoError(t, err)
@@ -43,7 +43,7 @@ func TestCSVParser_SouthWest(t *testing.T) {
 
 func TestCSVParser_SpeedConversion(t *testing.T) {
 	data := `INDEX,TAG,DATE,TIME,LATITUDE N/S,LONGITUDE E/W,HEIGHT,SPEED,HEADING
-1,T,010120,120000,50.0N,10.0E,100,36.0,90
+1,T,200101,120000,50.0N,10.0E,100,36.0,90
 `
 	tracks, err := (&csvParser{}).Parse([]byte(data))
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestCSVParser_InvalidCoordinate(t *testing.T) {
 
 func TestCSVParser_DateParsing(t *testing.T) {
 	data := `INDEX,TAG,DATE,TIME,LATITUDE N/S,LONGITUDE E/W,HEIGHT,SPEED,HEADING
-1,T,010125,235959,50.0N,10.0E,100,0.0,0
+1,T,250101,235959,50.0N,10.0E,100,0.0,0
 `
 	tracks, err := (&csvParser{}).Parse([]byte(data))
 	require.NoError(t, err)
@@ -130,5 +130,5 @@ func TestParseCoordinate(t *testing.T) {
 func TestParseDateTime(t *testing.T) {
 	dt, err := parseDateTime("260417", "110529")
 	require.NoError(t, err)
-	assert.Equal(t, time.Date(2017, 4, 26, 11, 5, 29, 0, time.UTC), dt)
+	assert.Equal(t, time.Date(2026, 4, 17, 11, 5, 29, 0, time.UTC), dt)
 }
