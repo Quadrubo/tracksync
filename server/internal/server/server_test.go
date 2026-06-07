@@ -23,15 +23,15 @@ type mockTarget struct {
 	err error
 }
 
-func (m *mockTarget) Type() string             { return "mock" }
-func (m *mockTarget) AcceptedFormats() []string { return []string{"gpx_1.1", "geojson"} }
+func (m *mockTarget) Type() string                                               { return "mock" }
+func (m *mockTarget) AcceptedFormats() []string                                  { return []string{"gpx_1.1", "geojson"} }
 func (m *mockTarget) Send(_ context.Context, filename string, data []byte) error { return m.err }
 
 type countTarget struct {
 	count *int
 }
 
-func (c *countTarget) Type() string             { return "count" }
+func (c *countTarget) Type() string              { return "count" }
 func (c *countTarget) AcceptedFormats() []string { return []string{"gpx_1.1", "geojson"} }
 func (c *countTarget) Send(_ context.Context, filename string, data []byte) error {
 	*c.count++
@@ -200,6 +200,79 @@ func TestUpload_TargetNotForwarded_OnDuplicate(t *testing.T) {
 	serveUpload(srv, "tok", "dev", "gpx_1.1", "a.gpx", validGPX)
 
 	assert.Equal(t, 1, calls, "target.Send should only be called once for duplicate content")
+}
+
+func TestUpload_SplitFilesMode_SendsMultiple(t *testing.T) {
+	calls := 0
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	require.NoError(t, InitDB(db))
+	t.Cleanup(func() { _ = db.Close() })
+
+	cfg := &config.Config{
+		Accounts: []config.Account{{DeviceID: "dev", Markers: []string{"C:split"}, SplitMarkerPosition: "start", SplitMode: "files"}},
+		Clients:  []config.Client{{ID: "c", Token: "tok", AllowedDeviceIDs: []string{"dev"}}},
+	}
+	srv := New(cfg, db, map[string]target.Target{"dev": &countTarget{count: &calls}})
+
+	csvData := []byte("INDEX,TAG,DATE,TIME,LATITUDE N/S,LONGITUDE E/W,HEIGHT,SPEED,HEADING\n" +
+		"1,T,260417,110529,52.0N,13.0E,38,1.4,333\n" +
+		"2,C,260417,110530,52.1N,13.1E,38,30.0,9\n" +
+		"3,T,260417,110531,52.2N,13.2E,38,30.0,13\n")
+
+	rec := serveUpload(srv, "tok", "dev", "columbus-csv", "track.csv", csvData)
+	require.Equal(t, http.StatusCreated, rec.Code)
+	assert.Equal(t, 2, calls, "files mode should forward one file per split track")
+	assert.Equal(t, "uploaded 2/2 files\n", rec.Body.String(), "response reports the multi-file count")
+	assert.Equal(t, "2", rec.Header().Get("X-Tracksync-Forwarded-Files"), "fan-out count is reported to the client")
+}
+
+// flakyTarget records every filename it accepts and fails sends for any
+// filename present in failOn.
+type flakyTarget struct {
+	sends  []string
+	failOn map[string]bool
+}
+
+func (f *flakyTarget) Type() string              { return "flaky" }
+func (f *flakyTarget) AcceptedFormats() []string { return []string{"gpx_1.1"} }
+func (f *flakyTarget) Send(_ context.Context, filename string, _ []byte) error {
+	if f.failOn[filename] {
+		return fmt.Errorf("simulated failure for %s", filename)
+	}
+	f.sends = append(f.sends, filename)
+	return nil
+}
+
+func TestUpload_SplitFilesMode_PartialFailureResendsOnlyMissing(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	require.NoError(t, InitDB(db))
+	t.Cleanup(func() { _ = db.Close() })
+
+	cfg := &config.Config{
+		Accounts: []config.Account{{DeviceID: "dev", Markers: []string{"C:split"}, SplitMarkerPosition: "start", SplitMode: "files"}},
+		Clients:  []config.Client{{ID: "c", Token: "tok", AllowedDeviceIDs: []string{"dev"}}},
+	}
+	tgt := &flakyTarget{failOn: map[string]bool{"track-2.gpx": true}}
+	srv := New(cfg, db, map[string]target.Target{"dev": tgt})
+
+	csvData := []byte("INDEX,TAG,DATE,TIME,LATITUDE N/S,LONGITUDE E/W,HEIGHT,SPEED,HEADING\n" +
+		"1,T,260417,110529,52.0N,13.0E,38,1.4,333\n" +
+		"2,C,260417,110530,52.1N,13.1E,38,30.0,9\n" +
+		"3,T,260417,110531,52.2N,13.2E,38,30.0,13\n")
+
+	// First attempt: track-1 delivered, track-2 fails -> whole upload errors.
+	rec1 := serveUpload(srv, "tok", "dev", "columbus-csv", "track.csv", csvData)
+	require.Equal(t, http.StatusBadGateway, rec1.Code)
+	assert.Equal(t, []string{"track-1.gpx"}, tgt.sends, "only the first file is delivered before the failure")
+
+	// Recover the target and retry the identical upload.
+	tgt.failOn = nil
+	rec2 := serveUpload(srv, "tok", "dev", "columbus-csv", "track.csv", csvData)
+	require.Equal(t, http.StatusCreated, rec2.Code)
+	assert.Equal(t, []string{"track-1.gpx", "track-2.gpx"}, tgt.sends, "retry resends only the missing file, no duplicate of track-1")
+	assert.Equal(t, "uploaded 1/2 files\n", rec2.Body.String(), "retry reports one file sent, the other a duplicate")
 }
 
 func TestUpload_MissingSourceFormat(t *testing.T) {

@@ -31,4 +31,8 @@ type Point struct {
 	VDOP       *float64
 	PDOP       *float64
 	Fix        *string // "none", "2d", "3d", "dgps", "pps"
+
+	// Marker flags a special point such as a POI (e.g. a Columbus CSV tag "C").
+	// Empty means an ordinary trackpoint.
+	Marker string
 }

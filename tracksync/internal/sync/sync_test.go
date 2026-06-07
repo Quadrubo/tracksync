@@ -102,15 +102,32 @@ func TestUpload_Created(t *testing.T) {
 		assert.Equal(t, "Bearer tok", r.Header.Get("Authorization"))
 		assert.Equal(t, "dev-1", r.Header.Get("X-Device-ID"))
 		assert.Equal(t, "gpx_1.1", r.Header.Get("X-Source-Format"))
+		w.Header().Set("X-Tracksync-Forwarded-Files", "3")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = fmt.Fprintln(w, "uploaded")
 	}))
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	status, err := Upload(context.Background(), client, ts.URL, "tok", "dev-1", "gpx_1.1", "track.gpx", []byte("<gpx/>"))
+	status, forwarded, err := Upload(context.Background(), client, ts.URL, "tok", "dev-1", "gpx_1.1", "track.gpx", []byte("<gpx/>"))
 	require.NoError(t, err)
 	assert.Equal(t, StatusUploaded, status)
+	assert.Equal(t, 3, forwarded, "forwarded-files header should be parsed")
+}
+
+func TestUpload_CreatedNoHeaderCountsAsOne(t *testing.T) {
+	// A missing fan-out header counts as one forwarded file.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprintln(w, "uploaded")
+	}))
+	defer ts.Close()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	status, forwarded, err := Upload(context.Background(), client, ts.URL, "tok", "dev-1", "gpx_1.1", "track.gpx", []byte("<gpx/>"))
+	require.NoError(t, err)
+	assert.Equal(t, StatusUploaded, status)
+	assert.Equal(t, 1, forwarded)
 }
 
 func TestUpload_Duplicate(t *testing.T) {
@@ -121,9 +138,10 @@ func TestUpload_Duplicate(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	status, err := Upload(context.Background(), client, ts.URL, "tok", "dev", "gpx_1.1", "f.gpx", []byte("data"))
+	status, forwarded, err := Upload(context.Background(), client, ts.URL, "tok", "dev", "gpx_1.1", "f.gpx", []byte("data"))
 	require.NoError(t, err)
 	assert.Equal(t, StatusDuplicate, status)
+	assert.Equal(t, 0, forwarded)
 }
 
 func TestUpload_ServerError(t *testing.T) {
@@ -134,7 +152,7 @@ func TestUpload_ServerError(t *testing.T) {
 	defer ts.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	_, err := Upload(context.Background(), client, ts.URL, "tok", "dev", "gpx_1.1", "f.gpx", []byte("data"))
+	_, _, err := Upload(context.Background(), client, ts.URL, "tok", "dev", "gpx_1.1", "f.gpx", []byte("data"))
 	assert.Error(t, err)
 }
 
@@ -153,10 +171,35 @@ func TestSyncFiles_Uploaded(t *testing.T) {
 	summary := SyncFiles(context.Background(), db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
 
 	assert.Equal(t, 1, summary.Uploaded)
+	assert.Equal(t, 1, summary.Forwarded, "no fan-out header: one source file counts as one forwarded file")
 	assert.Equal(t, 0, summary.Duplicate)
 	assert.Equal(t, 0, summary.Skipped)
 	assert.Equal(t, 0, summary.Errors)
 	assert.Equal(t, []string{"track.gpx"}, summary.Files)
+}
+
+func TestSyncFiles_AccumulatesForwardedFanOut(t *testing.T) {
+	// The server splits each upload into three forwarded files.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Tracksync-Forwarded-Files", "3")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprintln(w, "uploaded 3/3 files")
+	}))
+	defer ts.Close()
+
+	db := openTestDB(t)
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.gpx"), []byte("a"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.gpx"), []byte("b"), 0644))
+
+	files := []device.FoundFile{
+		{Path: filepath.Join(dir, "a.gpx"), Format: "gpx_1.1"},
+		{Path: filepath.Join(dir, "b.gpx"), Format: "gpx_1.1"},
+	}
+	summary := SyncFiles(context.Background(), db, &http.Client{Timeout: 5 * time.Second}, ts.URL, "tok", "dev", files)
+
+	assert.Equal(t, 2, summary.Uploaded, "two source files")
+	assert.Equal(t, 6, summary.Forwarded, "each source file fanned out into three target files")
 }
 
 func TestSyncFiles_Duplicate(t *testing.T) {

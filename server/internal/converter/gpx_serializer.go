@@ -12,16 +12,16 @@ func init() {
 type gpxSerializer struct{}
 
 type gpxOutput struct {
-	XMLName xml.Name      `xml:"gpx"`
-	Version string        `xml:"version,attr"`
-	Creator string        `xml:"creator,attr"`
-	XMLNS   string        `xml:"xmlns,attr"`
-	Tracks  []gpxTrkOut   `xml:"trk"`
+	XMLName xml.Name    `xml:"gpx"`
+	Version string      `xml:"version,attr"`
+	Creator string      `xml:"creator,attr"`
+	XMLNS   string      `xml:"xmlns,attr"`
+	Tracks  []gpxTrkOut `xml:"trk"`
 }
 
 type gpxTrkOut struct {
-	Name     string          `xml:"name,omitempty"`
-	Segments []gpxTrkSegOut  `xml:"trkseg"`
+	Name     string         `xml:"name,omitempty"`
+	Segments []gpxTrkSegOut `xml:"trkseg"`
 }
 
 type gpxTrkSegOut struct {

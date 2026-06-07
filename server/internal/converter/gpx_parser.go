@@ -22,8 +22,8 @@ type gpxFile struct {
 }
 
 type gpxTrk struct {
-	Name     string       `xml:"name"`
-	Segments []gpxTrkSeg  `xml:"trkseg"`
+	Name     string      `xml:"name"`
+	Segments []gpxTrkSeg `xml:"trkseg"`
 }
 
 type gpxTrkSeg struct {
@@ -46,7 +46,7 @@ type gpxTrkPt struct {
 // GPX 1.1 uses xsd:dateTime which allows fractional seconds and
 // timestamps without timezone offsets (interpreted as UTC).
 var gpxTimeFormats = []string{
-	time.RFC3339Nano,               // 2025-01-15T08:30:00.123Z / +01:00
+	time.RFC3339Nano,                // 2025-01-15T08:30:00.123Z / +01:00
 	"2006-01-02T15:04:05.999999999", // fractional seconds, no offset (UTC)
 	"2006-01-02T15:04:05",           // no fractions, no offset (UTC)
 }
