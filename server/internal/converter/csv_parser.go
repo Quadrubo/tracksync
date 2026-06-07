@@ -17,14 +17,15 @@ func init() {
 // Format: INDEX,TAG,DATE,TIME,LATITUDE N/S,LONGITUDE E/W,HEIGHT,SPEED,HEADING
 // Example: 1,T,260417,110529,52.4194759N,13.3076437E,62,1.4,333
 //
-// - DATE is yymmdd (UTC)
-// - TIME is hhmmss (UTC)
-// - LATITUDE: decimal degrees with N/S suffix
-// - LONGITUDE: decimal degrees with E/W suffix
-// - HEIGHT: meters
-// - SPEED: km/h
-// - HEADING: degrees
-// - TAG: T=trackpoint, C=POI, D=second POI, G=wake-up point (ignored, all rows are treated as trackpoints)
+//   - DATE is yymmdd (UTC)
+//   - TIME is hhmmss (UTC)
+//   - LATITUDE: decimal degrees with N/S suffix
+//   - LONGITUDE: decimal degrees with E/W suffix
+//   - HEIGHT: meters
+//   - SPEED: km/h
+//   - HEADING: degrees
+//   - TAG: T=trackpoint, C=POI, D=second POI, G=wake-up point. Every row is kept
+//     as a trackpoint; tags other than T are recorded on Point.Marker.
 type csvParser struct{}
 
 func (p *csvParser) Parse(data []byte) ([]Track, error) {
@@ -50,6 +51,11 @@ func (p *csvParser) Parse(data []byte) ([]Track, error) {
 		point, err := parseCSVRow(record, i+2)
 		if err != nil {
 			return nil, err
+		}
+
+		// Any tag other than T (trackpoint) is a marker.
+		if tag := record[1]; tag != "" && tag != "T" {
+			point.Marker = tag
 		}
 
 		seg.Points = append(seg.Points, point)

@@ -41,6 +41,91 @@ func TestParseGroup_DefaultTargetType(t *testing.T) {
 	assert.Equal(t, "dawarich", accounts[0].TargetType)
 }
 
+func TestParseGroup_SplitConfig(t *testing.T) {
+	v := viper.New()
+	v.Set("ACCOUNT__0__DEVICE_ID", "dev-1")
+	v.Set("ACCOUNT__0__TARGET_URL", "http://localhost:3000")
+	v.Set("ACCOUNT__0__API_KEY", "key")
+	v.Set("ACCOUNT__0__MARKERS", "C:split, D:split")
+	v.Set("ACCOUNT__0__SPLIT_MARKER_POSITION", "end")
+
+	accounts := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+
+	require.Len(t, accounts, 1)
+	assert.Equal(t, []string{"C:split", "D:split"}, accounts[0].Markers)
+	assert.Equal(t, "end", accounts[0].SplitMarkerPosition)
+}
+
+func TestParseGroup_SplitDefaults(t *testing.T) {
+	v := viper.New()
+	v.Set("ACCOUNT__0__DEVICE_ID", "dev-1")
+	v.Set("ACCOUNT__0__TARGET_URL", "http://localhost:3000")
+	v.Set("ACCOUNT__0__API_KEY", "key")
+
+	accounts := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+
+	require.Len(t, accounts, 1)
+	assert.Nil(t, accounts[0].Markers, "no markers by default")
+	assert.Equal(t, "start", accounts[0].SplitMarkerPosition)
+	assert.Equal(t, "tracks", accounts[0].SplitMode)
+}
+
+func TestValidate_SplitMarkerPositionInvalid(t *testing.T) {
+	cfg := &Config{
+		Accounts: []Account{{DeviceID: "d", TargetType: "dawarich", TargetURL: "http://x", APIKey: "k", SplitMarkerPosition: "middle"}},
+		Clients:  []Client{{ID: "c", Token: "t"}},
+	}
+	assert.Error(t, cfg.validate(), "marker position must be start or end")
+}
+
+func TestValidate_SplitMarkerPositionValid(t *testing.T) {
+	cfg := &Config{
+		Accounts: []Account{{DeviceID: "d", TargetType: "dawarich", TargetURL: "http://x", APIKey: "k", SplitMarkerPosition: "end"}},
+		Clients:  []Client{{ID: "c", Token: "t"}},
+	}
+	assert.NoError(t, cfg.validate())
+}
+
+func TestValidate_MarkersValid(t *testing.T) {
+	cfg := &Config{
+		Accounts: []Account{{DeviceID: "d", TargetType: "dawarich", TargetURL: "http://x", APIKey: "k", Markers: []string{"C:split", "D:split"}}},
+		Clients:  []Client{{ID: "c", Token: "t"}},
+	}
+	assert.NoError(t, cfg.validate())
+}
+
+func TestValidate_MarkersUnknownFunctionality(t *testing.T) {
+	cfg := &Config{
+		Accounts: []Account{{DeviceID: "d", TargetType: "dawarich", TargetURL: "http://x", APIKey: "k", Markers: []string{"C:bogus"}}},
+		Clients:  []Client{{ID: "c", Token: "t"}},
+	}
+	assert.Error(t, cfg.validate())
+}
+
+func TestValidate_MarkersMalformed(t *testing.T) {
+	cfg := &Config{
+		Accounts: []Account{{DeviceID: "d", TargetType: "dawarich", TargetURL: "http://x", APIKey: "k", Markers: []string{"C"}}},
+		Clients:  []Client{{ID: "c", Token: "t"}},
+	}
+	assert.Error(t, cfg.validate())
+}
+
+func TestValidate_SplitModeInvalid(t *testing.T) {
+	cfg := &Config{
+		Accounts: []Account{{DeviceID: "d", TargetType: "dawarich", TargetURL: "http://x", APIKey: "k", SplitMode: "zip"}},
+		Clients:  []Client{{ID: "c", Token: "t"}},
+	}
+	assert.Error(t, cfg.validate(), "split mode must be tracks or files")
+}
+
+func TestValidate_SplitModeValid(t *testing.T) {
+	cfg := &Config{
+		Accounts: []Account{{DeviceID: "d", TargetType: "dawarich", TargetURL: "http://x", APIKey: "k", SplitMode: "files"}},
+		Clients:  []Client{{ID: "c", Token: "t"}},
+	}
+	assert.NoError(t, cfg.validate())
+}
+
 func TestParseGroup_Clients(t *testing.T) {
 	v := viper.New()
 	v.Set("CLIENT__0__ID", "laptop")

@@ -82,6 +82,9 @@ All configuration is done via environment variables.
 | `ACCOUNT__N__TARGET_URL`     |                 | Yes                     | Target instance URL                |
 | `ACCOUNT__N__API_KEY`        |                 | Yes if not API_KEY_FILE | API key (inline)                   |
 | `ACCOUNT__N__API_KEY_FILE`   |                 | Yes if not API_KEY      | API key (file path)                |
+| `ACCOUNT__N__MARKERS`        |                 | No                      | Comma-separated `marker:functionality` rules assigning behavior to point markers (see [Marker functionalities](#marker-functionalities)) |
+| `ACCOUNT__N__SPLIT_MARKER_POSITION` | `start`  | No                      | For the `split` functionality: where the marked point goes, `start` of the new track or `end` of the previous one |
+| `ACCOUNT__N__SPLIT_MODE`     | `tracks`        | No                      | For the `split` functionality: `tracks` (all tracks in one file) or `files` (one upload per track) |
 | `CLIENT__N__ID`              |                 | Yes                     | Client identifier                  |
 | `CLIENT__N__TOKEN`           |                 | Yes if not TOKEN_FILE   | Auth token (inline)                |
 | `CLIENT__N__TOKEN_FILE`      |                 | Yes if not TOKEN        | Auth token (file path)             |
@@ -190,6 +193,47 @@ For example, when a Columbus P-10 Pro is configured to output CSV (which include
 | `gpx_1.1`      | Parse + Serialize | No    | No      | Yes       | Yes        | Yes |
 | `columbus-csv` | Parse             | Yes   | Yes     | Yes       | No         | No  |
 | `geojson`      | Serialize         | Yes   | Yes     | Yes       | Yes        | Yes |
+
+## Marker functionalities
+
+Points can carry a *marker*, a source-format annotation such as a manually
+placed POI or waypoint. You can assign a functionality to each marker so that
+tracksync acts on it. This works at the universal-track level and is
+format-agnostic: every parser maps its format's native markers onto a point marker, and functionalities operate on those.
+
+Configure rules with `ACCOUNT__N__MARKERS` as comma-separated
+`marker:functionality` pairs:
+
+```
+ACCOUNT__0__MARKERS=C:split
+# multiple markers, each with its own functionality:
+ACCOUNT__0__MARKERS=C:split,D:split
+```
+
+Which marker values are available depends on the source format:
+
+| Format         | Markers                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| `columbus-csv` | `TAG` column values other than `T`: `C` (function-key POI), `D` (second POI), `G` (automatic wake-up point, usually leave unmapped) |
+
+### Available functionalities
+
+| Functionality | Effect                                                                                   |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `split`       | Start a new track at the marked point. Useful for separating legs of a journey. For example pressing a logger's function key when boarding and leaving a bus so the walking and bus legs become distinct tracks. |
+
+For the `split` functionality, `ACCOUNT__N__SPLIT_MARKER_POSITION` controls which
+side of the split the marked point lands on: `start` (default) makes it the first
+point of the new track, `end` keeps it as the last point of the previous one.
+
+`ACCOUNT__N__SPLIT_MODE` controls how the split tracks are delivered:
+
+- `tracks` (default): all tracks are written into a single file.
+- `files`: each track is uploaded as its own file. Some targets, **including
+  Dawarich**, treat one uploaded file as a single track and rebuild their own
+  segmentation from the points; for those you need `files` so the split legs
+  actually appear as separate tracks. The output filenames are suffixed
+  (`track-1.geojson`, `track-2.geojson`, …).
 
 ## Supported targets
 

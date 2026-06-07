@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Quadrubo/tracksync/server/internal/converter"
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/viper"
 )
@@ -21,8 +22,18 @@ func validateConfig(sl validator.StructLevel) {
 	cfg := sl.Current().Interface().(Config)
 
 	accountDevices := make(map[string]bool)
-	for _, a := range cfg.Accounts {
+	for i, a := range cfg.Accounts {
 		accountDevices[a.DeviceID] = true
+
+		if _, err := converter.ParseMarkerRules(a.Markers); err != nil {
+			sl.ReportError(
+				a.Markers,
+				fmt.Sprintf("Accounts[%d].Markers", i),
+				"Markers",
+				"valid_marker_rules",
+				err.Error(),
+			)
+		}
 	}
 
 	for i, c := range cfg.Clients {
@@ -51,11 +62,14 @@ type Config struct {
 }
 
 type Account struct {
-	DeviceID   string `env:"DEVICE_ID" validate:"required"`
-	TargetType string `env:"TARGET_TYPE" default:"dawarich" validate:"required"`
-	TargetURL  string `env:"TARGET_URL" validate:"required"`
-	APIKey     string `env:"API_KEY" validate:"required_without=APIKeyFile"`
-	APIKeyFile string `env:"API_KEY_FILE" validate:"required_without=APIKey"`
+	DeviceID            string   `env:"DEVICE_ID" validate:"required"`
+	TargetType          string   `env:"TARGET_TYPE" default:"dawarich" validate:"required"`
+	TargetURL           string   `env:"TARGET_URL" validate:"required"`
+	APIKey              string   `env:"API_KEY" validate:"required_without=APIKeyFile"`
+	APIKeyFile          string   `env:"API_KEY_FILE" validate:"required_without=APIKey"`
+	Markers             []string `env:"MARKERS"`
+	SplitMarkerPosition string   `env:"SPLIT_MARKER_POSITION" default:"start" validate:"omitempty,oneof=start end"`
+	SplitMode           string   `env:"SPLIT_MODE" default:"tracks" validate:"omitempty,oneof=tracks files"`
 }
 
 type Client struct {

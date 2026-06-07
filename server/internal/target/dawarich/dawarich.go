@@ -35,8 +35,8 @@ type Dawarich struct {
 	client *http.Client
 }
 
-func (d *Dawarich) Type() string                { return "dawarich" }
-func (d *Dawarich) AcceptedFormats() []string    { return []string{"geojson", "gpx_1.1"} }
+func (d *Dawarich) Type() string              { return "dawarich" }
+func (d *Dawarich) AcceptedFormats() []string { return []string{"geojson", "gpx_1.1"} }
 
 func (d *Dawarich) Send(ctx context.Context, filename string, data []byte) error {
 	apiKey, err := d.readAPIKey()

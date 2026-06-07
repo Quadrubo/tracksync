@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,23 +83,25 @@ const (
 	StatusDuplicate                     // server already had this file
 )
 
-func Upload(ctx context.Context, client *http.Client, serverURL, token, deviceID, sourceFormat, filename string, data []byte) (UploadStatus, error) {
+// Upload sends one source file. On success it returns how many target files the
+// server forwarded (more than one when a track was split).
+func Upload(ctx context.Context, client *http.Client, serverURL, token, deviceID, sourceFormat, filename string, data []byte) (UploadStatus, int, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
-		return 0, fmt.Errorf("creating form: %w", err)
+		return 0, 0, fmt.Errorf("creating form: %w", err)
 	}
 	if _, err := part.Write(data); err != nil {
-		return 0, fmt.Errorf("writing form: %w", err)
+		return 0, 0, fmt.Errorf("writing form: %w", err)
 	}
 	if err := writer.Close(); err != nil {
-		return 0, fmt.Errorf("closing form: %w", err)
+		return 0, 0, fmt.Errorf("closing form: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", serverURL+"/upload", &buf)
 	if err != nil {
-		return 0, fmt.Errorf("creating request: %w", err)
+		return 0, 0, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -107,7 +110,7 @@ func Upload(ctx context.Context, client *http.Client, serverURL, token, deviceID
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("sending request: %w", err)
+		return 0, 0, fmt.Errorf("sending request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -116,11 +119,16 @@ func Upload(ctx context.Context, client *http.Client, serverURL, token, deviceID
 
 	switch resp.StatusCode {
 	case http.StatusCreated:
-		return StatusUploaded, nil
+		// Default to 1 when the header is missing or invalid.
+		forwarded, err := strconv.Atoi(resp.Header.Get("X-Tracksync-Forwarded-Files"))
+		if err != nil || forwarded < 1 {
+			forwarded = 1
+		}
+		return StatusUploaded, forwarded, nil
 	case http.StatusOK:
-		return StatusDuplicate, nil
+		return StatusDuplicate, 0, nil
 	default:
-		return 0, fmt.Errorf("server returned %d: %s", resp.StatusCode, status)
+		return 0, 0, fmt.Errorf("server returned %d: %s", resp.StatusCode, status)
 	}
 }
 
@@ -130,6 +138,7 @@ type Summary struct {
 	Duplicate int      `json:"duplicate"`
 	Skipped   int      `json:"skipped"`
 	Errors    int      `json:"errors"`
+	Forwarded int      `json:"forwarded"` // target files forwarded (exceeds Uploaded when tracks were split)
 	Files     []string `json:"files,omitempty"`
 }
 
@@ -161,7 +170,7 @@ func SyncFiles(ctx context.Context, db *sql.DB, client *http.Client, serverURL, 
 			continue
 		}
 
-		status, err := Upload(ctx, client, serverURL, token, deviceID, ff.Format, name, data)
+		status, forwarded, err := Upload(ctx, client, serverURL, token, deviceID, ff.Format, name, data)
 		if err != nil {
 			slog.Error("upload failed", "file", name, "error", err)
 			summary.Errors++
@@ -176,8 +185,9 @@ func SyncFiles(ctx context.Context, db *sql.DB, client *http.Client, serverURL, 
 
 		switch status {
 		case StatusUploaded:
-			slog.Info("uploaded", "file", name)
+			slog.Info("uploaded", "file", name, "forwarded", forwarded)
 			summary.Uploaded++
+			summary.Forwarded += forwarded
 			summary.Files = append(summary.Files, name)
 		case StatusDuplicate:
 			slog.Info("duplicate", "file", name, "reason", "already on server")

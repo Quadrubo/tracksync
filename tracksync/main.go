@@ -138,6 +138,7 @@ func main() {
 
 	slog.Info("sync complete",
 		"uploaded", summary.Uploaded,
+		"forwarded", summary.Forwarded,
 		"duplicate", summary.Duplicate,
 		"skipped", summary.Skipped,
 		"errors", summary.Errors,

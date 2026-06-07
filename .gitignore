@@ -3,5 +3,9 @@ docker-compose.local.yml
 .env
 result
 
+# IDEs
+.idea/
+.vscode/
+
 # NixOS
 .direnv

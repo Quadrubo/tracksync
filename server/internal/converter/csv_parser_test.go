@@ -132,3 +132,20 @@ func TestParseDateTime(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, time.Date(2026, 4, 17, 11, 5, 29, 0, time.UTC), dt)
 }
+
+func TestCSVParser_RecordsMarkers(t *testing.T) {
+	// Non-trackpoint tags become Point.Marker; plain T trackpoints stay empty.
+	data := `INDEX,TAG,DATE,TIME,LATITUDE N/S,LONGITUDE E/W,HEIGHT,SPEED,HEADING
+1,T,260417,110529,52.0N,13.0E,38,1.4,333
+2,C,260417,110530,52.1N,13.1E,38,30.0,9
+3,G,260417,110531,52.2N,13.2E,38,30.0,13
+`
+	tracks, err := (&csvParser{}).Parse([]byte(data))
+	require.NoError(t, err)
+	require.Len(t, tracks, 1)
+	pts := tracks[0].Segments[0].Points
+	require.Len(t, pts, 3)
+	assert.Equal(t, "", pts[0].Marker, "T trackpoint has no marker")
+	assert.Equal(t, "C", pts[1].Marker)
+	assert.Equal(t, "G", pts[2].Marker)
+}

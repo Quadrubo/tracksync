@@ -51,7 +51,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	db, err := sql.Open("sqlite", cfg.StateDB)
+	// A file: URI with an absolute path applies the foreign_keys pragma to every
+	// connection (the driver rejects a relative path in URI form).
+	dbPath, err := filepath.Abs(cfg.StateDB)
+	if err != nil {
+		slog.Error("failed to resolve database path", "error", err)
+		os.Exit(1)
+	}
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		slog.Error("failed to open database", "error", err)
 		os.Exit(1)
