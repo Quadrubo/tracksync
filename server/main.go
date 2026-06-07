@@ -37,7 +37,7 @@ func main() {
 			APIKey:     account.APIKey,
 			APIKeyFile: account.APIKeyFile,
 			Timeout:    cfg.TargetTimeout,
-		})
+		}, cfg.TargetConfigs[account.TargetType])
 		if err != nil {
 			slog.Error("failed to create target", "device", account.DeviceID, "error", err)
 			os.Exit(1)

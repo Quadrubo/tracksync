@@ -112,7 +112,7 @@ func TestConvert_GPXPassthrough(t *testing.T) {
 </gpx>`)
 
 	// GPX → GPX with passthrough enabled: return original bytes
-	outs, err := Convert("gpx_1.1", gpxData, []string{"gpx_1.1", "geojson"}, "track.gpx", true, MarkerOptions{})
+	outs, err := Convert("gpx_1.1", gpxData, []string{"gpx_1.1", "geojson"}, "track.gpx", true, MarkerOptions{}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
 	assert.Equal(t, "gpx_1.1", outs[0].Format)
@@ -133,7 +133,7 @@ func TestConvert_PassthroughSkippedWhenSplitOccurs(t *testing.T) {
 	outs, err := Convert("columbus-csv", csvData, []string{"gpx_1.1"}, "track.csv", true, MarkerOptions{
 		Rules:               []MarkerRule{{Marker: "C", Functionality: MarkerSplit}},
 		SplitMarkerPosition: "start",
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
 	assert.Equal(t, 2, strings.Count(string(outs[0].Data), "<trk>"), "split must produce two tracks, not passthrough")
@@ -152,7 +152,7 @@ func TestConvert_PassthroughWhenConfiguredSplitDoesNotFire(t *testing.T) {
 	outs, err := Convert("gpx_1.1", gpxData, []string{"gpx_1.1", "geojson"}, "track.gpx", true, MarkerOptions{
 		Rules:               []MarkerRule{{Marker: "C", Functionality: MarkerSplit}},
 		SplitMarkerPosition: "start",
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
 	assert.Equal(t, "gpx_1.1", outs[0].Format)
@@ -168,7 +168,7 @@ func TestConvert_GPXReserialized(t *testing.T) {
 </gpx>`)
 
 	// GPX → GPX without passthrough: re-serialized
-	outs, err := Convert("gpx_1.1", gpxData, []string{"gpx_1.1", "geojson"}, "track.gpx", false, MarkerOptions{})
+	outs, err := Convert("gpx_1.1", gpxData, []string{"gpx_1.1", "geojson"}, "track.gpx", false, MarkerOptions{}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
 	assert.Equal(t, "gpx_1.1", outs[0].Format)
@@ -187,7 +187,7 @@ func TestConvert_GPXToGeoJSON_WhenSpeedInTarget(t *testing.T) {
 </gpx>`)
 
 	// GeoJSON listed first: wins the tie
-	outs, err := Convert("gpx_1.1", gpxData, []string{"geojson", "gpx_1.1"}, "track.gpx", false, MarkerOptions{})
+	outs, err := Convert("gpx_1.1", gpxData, []string{"geojson", "gpx_1.1"}, "track.gpx", false, MarkerOptions{}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
 	assert.Equal(t, "geojson", outs[0].Format)
@@ -196,13 +196,13 @@ func TestConvert_GPXToGeoJSON_WhenSpeedInTarget(t *testing.T) {
 }
 
 func TestConvert_NoParser(t *testing.T) {
-	_, err := Convert("unknown", []byte("data"), []string{"gpx_1.1"}, "f.txt", false, MarkerOptions{})
+	_, err := Convert("unknown", []byte("data"), []string{"gpx_1.1"}, "f.txt", false, MarkerOptions{}, nil)
 	assert.ErrorContains(t, err, "no parser")
 }
 
 func TestConvert_NoSerializer(t *testing.T) {
 	gpxData := []byte(`<?xml version="1.0"?><gpx version="1.1"><trk><trkseg><trkpt lat="1" lon="2"/></trkseg></trk></gpx>`)
-	_, err := Convert("gpx_1.1", gpxData, []string{"columbus-csv"}, "f.gpx", false, MarkerOptions{})
+	_, err := Convert("gpx_1.1", gpxData, []string{"columbus-csv"}, "f.gpx", false, MarkerOptions{}, nil)
 	assert.ErrorContains(t, err, "no serializer")
 }
 
@@ -210,7 +210,7 @@ func TestConvert_FilenameExtensionReplaced(t *testing.T) {
 	gpxData := []byte(`<?xml version="1.0"?>
 <gpx version="1.1"><trk><trkseg><trkpt lat="1" lon="2"/></trkseg></trk></gpx>`)
 
-	outs, err := Convert("gpx_1.1", gpxData, []string{"geojson"}, "my.track.gpx", false, MarkerOptions{})
+	outs, err := Convert("gpx_1.1", gpxData, []string{"geojson"}, "my.track.gpx", false, MarkerOptions{}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
 	assert.Equal(t, "my.track.geojson", outs[0].Filename)
@@ -230,7 +230,7 @@ func TestConvert_SplitColumbusCSVToMultipleGPXTracks(t *testing.T) {
 `)
 
 	// Restrict accepted formats to GPX so the split is observable as <trk> elements.
-	outs, err := Convert("columbus-csv", csvData, []string{"gpx_1.1"}, "track.csv", false, MarkerOptions{Rules: []MarkerRule{{Marker: "C", Functionality: MarkerSplit}}, SplitMarkerPosition: "start"})
+	outs, err := Convert("columbus-csv", csvData, []string{"gpx_1.1"}, "track.csv", false, MarkerOptions{Rules: []MarkerRule{{Marker: "C", Functionality: MarkerSplit}}, SplitMarkerPosition: "start"}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1, "tracks mode: one file")
 	assert.Equal(t, "gpx_1.1", outs[0].Format)
@@ -248,7 +248,7 @@ func TestConvert_SplitFilesMode_OneFilePerTrack(t *testing.T) {
 		Rules:               []MarkerRule{{Marker: "C", Functionality: MarkerSplit}},
 		SplitMarkerPosition: "start",
 		SplitMode:           "files",
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 2, "files mode: one file per track")
 	assert.Equal(t, "track-1.gpx", outs[0].Filename)
@@ -264,7 +264,7 @@ func TestConvert_FilesMode_SingleTrackNoSuffix(t *testing.T) {
 1,T,260417,110529,52.0N,13.0E,38,1.4,333
 2,T,260417,110530,52.1N,13.1E,38,1.4,9
 `)
-	outs, err := Convert("columbus-csv", csvData, []string{"gpx_1.1"}, "track.csv", false, MarkerOptions{SplitMode: "files"})
+	outs, err := Convert("columbus-csv", csvData, []string{"gpx_1.1"}, "track.csv", false, MarkerOptions{SplitMode: "files"}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
 	assert.Equal(t, "track.gpx", outs[0].Filename)
@@ -283,7 +283,7 @@ func TestConvert_FilesMode_DoesNotSplitSourceNativeTracks(t *testing.T) {
 		Rules:               []MarkerRule{{Marker: "C", Functionality: MarkerSplit}},
 		SplitMarkerPosition: "start",
 		SplitMode:           "files",
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1, "no split fired: a single file regardless of files mode")
 	assert.Equal(t, "track.gpx", outs[0].Filename)
@@ -296,7 +296,7 @@ func TestConvert_NoSplitColumbusCSVSingleGPXTrack(t *testing.T) {
 2,C,260417,110530,52.1N,13.1E,38,30.0,9
 `)
 
-	outs, err := Convert("columbus-csv", csvData, []string{"gpx_1.1"}, "track.csv", false, MarkerOptions{})
+	outs, err := Convert("columbus-csv", csvData, []string{"gpx_1.1"}, "track.csv", false, MarkerOptions{}, nil)
 	require.NoError(t, err)
 	require.Len(t, outs, 1)
 	assert.Equal(t, 1, strings.Count(string(outs[0].Data), "<trk>"), "no split tags configured: single track")

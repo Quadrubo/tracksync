@@ -20,7 +20,8 @@ func TestParseGroup_Accounts(t *testing.T) {
 	v.Set("ACCOUNT__1__TARGET_URL", "http://localhost:3001")
 	v.Set("ACCOUNT__1__API_KEY_FILE", "/tmp/key")
 
-	accounts := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	accounts, err := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	require.NoError(t, err)
 
 	require.Len(t, accounts, 2)
 	assert.Equal(t, "dev-1", accounts[0].DeviceID)
@@ -35,7 +36,8 @@ func TestParseGroup_DefaultTargetType(t *testing.T) {
 	v.Set("ACCOUNT__0__TARGET_URL", "http://localhost:3000")
 	v.Set("ACCOUNT__0__API_KEY", "key")
 
-	accounts := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	accounts, err := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	require.NoError(t, err)
 
 	require.Len(t, accounts, 1)
 	assert.Equal(t, "dawarich", accounts[0].TargetType)
@@ -49,7 +51,8 @@ func TestParseGroup_SplitConfig(t *testing.T) {
 	v.Set("ACCOUNT__0__MARKERS", "C:split, D:split")
 	v.Set("ACCOUNT__0__SPLIT_MARKER_POSITION", "end")
 
-	accounts := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	accounts, err := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	require.NoError(t, err)
 
 	require.Len(t, accounts, 1)
 	assert.Equal(t, []string{"C:split", "D:split"}, accounts[0].Markers)
@@ -62,7 +65,8 @@ func TestParseGroup_SplitDefaults(t *testing.T) {
 	v.Set("ACCOUNT__0__TARGET_URL", "http://localhost:3000")
 	v.Set("ACCOUNT__0__API_KEY", "key")
 
-	accounts := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	accounts, err := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	require.NoError(t, err)
 
 	require.Len(t, accounts, 1)
 	assert.Nil(t, accounts[0].Markers, "no markers by default")
@@ -132,7 +136,8 @@ func TestParseGroup_Clients(t *testing.T) {
 	v.Set("CLIENT__0__TOKEN", "tok")
 	v.Set("CLIENT__0__ALLOWED_DEVICES", "dev-1, dev-2 , dev-3")
 
-	clients := parseGroup[Client](v, "CLIENT", "ID")
+	clients, err := parseGroup[Client](v, "CLIENT", "ID")
+	require.NoError(t, err)
 
 	require.Len(t, clients, 1)
 	assert.Equal(t, "laptop", clients[0].ID)
@@ -149,7 +154,8 @@ func TestParseGroup_StopsAtGap(t *testing.T) {
 	v.Set("ACCOUNT__2__TARGET_URL", "http://localhost")
 	v.Set("ACCOUNT__2__API_KEY", "key")
 
-	accounts := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	accounts, err := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	require.NoError(t, err)
 	assert.Len(t, accounts, 1, "should stop at gap in indices")
 }
 
@@ -241,4 +247,32 @@ func TestCanUpload(t *testing.T) {
 func TestCanUpload_Empty(t *testing.T) {
 	c := &Client{}
 	assert.False(t, c.CanUpload("anything"))
+}
+
+type targetCfgFixture struct {
+	Flag bool `env:"FLAG"`
+}
+
+func TestParseTargetConfig_Bool(t *testing.T) {
+	v := viper.New()
+	v.Set("TARGET__TEST__FLAG", "true")
+
+	c, err := parseTargetConfig(v, "TARGET__TEST__", targetCfgFixture{})
+	require.NoError(t, err)
+	assert.True(t, c.(targetCfgFixture).Flag)
+}
+
+func TestParseTargetConfig_DefaultsZero(t *testing.T) {
+	c, err := parseTargetConfig(viper.New(), "TARGET__TEST__", targetCfgFixture{})
+	require.NoError(t, err)
+	assert.False(t, c.(targetCfgFixture).Flag)
+}
+
+func TestParseTargetConfig_InvalidBool(t *testing.T) {
+	v := viper.New()
+	v.Set("TARGET__TEST__FLAG", "yes")
+
+	_, err := parseTargetConfig(v, "TARGET__TEST__", targetCfgFixture{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FLAG")
 }

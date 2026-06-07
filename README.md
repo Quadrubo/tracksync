@@ -85,6 +85,7 @@ All configuration is done via environment variables.
 | `ACCOUNT__N__MARKERS`        |                 | No                      | Comma-separated `marker:functionality` rules assigning behavior to point markers (see [Marker functionalities](#marker-functionalities)) |
 | `ACCOUNT__N__SPLIT_MARKER_POSITION` | `start`  | No                      | For the `split` functionality: where the marked point goes, `start` of the new track or `end` of the previous one |
 | `ACCOUNT__N__SPLIT_MODE`     | `tracks`        | No                      | For the `split` functionality: `tracks` (all tracks in one file) or `files` (one upload per track) |
+| `TARGET__DAWARICH__EMIT_TRACKER_ID` | `false`  | No                      | Tag each track with a stable `tracker_id` so Dawarich keeps split tracks separate (see [Keeping split tracks separate in Dawarich](#keeping-split-tracks-separate-in-dawarich)) |
 | `CLIENT__N__ID`              |                 | Yes                     | Client identifier                  |
 | `CLIENT__N__TOKEN`           |                 | Yes if not TOKEN_FILE   | Auth token (inline)                |
 | `CLIENT__N__TOKEN_FILE`      |                 | Yes if not TOKEN        | Auth token (file path)             |
@@ -229,11 +230,20 @@ point of the new track, `end` keeps it as the last point of the previous one.
 `ACCOUNT__N__SPLIT_MODE` controls how the split tracks are delivered:
 
 - `tracks` (default): all tracks are written into a single file.
-- `files`: each track is uploaded as its own file. Some targets, **including
-  Dawarich**, treat one uploaded file as a single track and rebuild their own
-  segmentation from the points; for those you need `files` so the split legs
-  actually appear as separate tracks. The output filenames are suffixed
-  (`track-1.geojson`, `track-2.geojson`, …).
+- `files`: each track is uploaded as its own file, with suffixed filenames
+  (`track-1.geojson`, `track-2.geojson`, …). Splitting into files does not by
+  itself keep tracks separate in Dawarich, which re-segments the points by time
+  gap; see [Keeping split tracks separate in Dawarich](#keeping-split-tracks-separate-in-dawarich).
+
+### Keeping split tracks separate in Dawarich
+
+Dawarich rebuilds tracks from the uploaded points by splitting on time gaps, so
+split legs that are close in time get merged back together. Set
+`TARGET__DAWARICH__EMIT_TRACKER_ID=true` to tag each track with a stable `tracker_id`;
+Dawarich groups points into tracks by that id and keeps the split legs separate.
+This works in either `SPLIT_MODE`, and regardless of the uploaded file format:
+the Dawarich target always forwards points as GeoJSON, so the `tracker_id` is
+what keeps the legs apart.
 
 ## Supported targets
 

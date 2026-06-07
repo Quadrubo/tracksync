@@ -43,6 +43,9 @@ func (s *geojsonSerializer) Serialize(tracks []Track) ([]byte, string, error) {
 
 				props := map[string]interface{}{}
 
+				for k, v := range track.Properties {
+					props[k] = v
+				}
 				if track.Name != "" {
 					props["track_name"] = track.Name
 				}
