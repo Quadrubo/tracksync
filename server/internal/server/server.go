@@ -152,8 +152,11 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A target may also shape the tracks before serialization (e.g. tracker_id).
+	transformer, _ := t.(converter.TrackTransformer)
+
 	outputs, err := converter.Convert(
-		sourceFormat, data, t.AcceptedFormats(), header.Filename, s.cfg.PassthroughConversion, s.markerOpts[deviceID],
+		sourceFormat, data, t.AcceptedFormats(), header.Filename, s.cfg.PassthroughConversion, s.markerOpts[deviceID], transformer,
 	)
 	if err != nil {
 		slog.Error("conversion failed",

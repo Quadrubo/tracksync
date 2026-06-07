@@ -12,6 +12,12 @@ type OutputFile struct {
 	Filename string
 }
 
+// TrackTransformer lets a target shape the split tracks for a given output
+// format before serialization. It returns whether it changed anything.
+type TrackTransformer interface {
+	TransformTracks(format string, files [][]Track) (changed bool)
+}
+
 // Convert parses data in sourceFormat, applies markers, selects the best target
 // format from acceptedFormats, and serializes the tracks into one or more output
 // files.
@@ -19,7 +25,7 @@ type OutputFile struct {
 // When passthrough is true and sourceFormat matches the best target format, the
 // original data is returned unchanged; otherwise it is re-serialized. With
 // markers.SplitMode == "files" each track is serialized into its own file.
-func Convert(sourceFormat string, data []byte, acceptedFormats []string, originalFilename string, passthrough bool, markers MarkerOptions) ([]OutputFile, error) {
+func Convert(sourceFormat string, data []byte, acceptedFormats []string, originalFilename string, passthrough bool, markers MarkerOptions, transformer TrackTransformer) ([]OutputFile, error) {
 	parser, ok := GetParser(sourceFormat)
 	if !ok {
 		return nil, fmt.Errorf("no parser for format %q", sourceFormat)
@@ -32,12 +38,16 @@ func Convert(sourceFormat string, data []byte, acceptedFormats []string, origina
 
 	result := applyMarkers(tracks, markers)
 
-	// Determine which fields the parsed tracks actually contain.
 	usedFields := mergeUsedFields(result.Tracks())
 
 	bestFormat := selectBestFormat(usedFields, acceptedFormats)
 	if bestFormat == "" {
 		return nil, fmt.Errorf("no serializer available for any accepted format: %v", acceptedFormats)
+	}
+
+	// After format selection so the transformer can skip formats that can't carry its changes.
+	if transformer != nil && transformer.TransformTracks(bestFormat, result.Files) {
+		result.Modified = true
 	}
 
 	// Passthrough only when nothing was restructured; a split rewrites the tracks.

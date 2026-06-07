@@ -90,15 +90,32 @@ func TestReadAPIKey_File(t *testing.T) {
 }
 
 func TestDawarich_Timeout(t *testing.T) {
-	tgt, err := target.Get("dawarich", target.Config{URL: "http://localhost", APIKey: "k", Timeout: 42 * time.Second})
+	tgt, err := target.Get("dawarich", target.Config{URL: "http://localhost", APIKey: "k", Timeout: 42 * time.Second}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 42*time.Second, tgt.(*Dawarich).client.Timeout)
 }
 
 func TestDawarich_DefaultTimeout(t *testing.T) {
-	tgt, err := target.Get("dawarich", target.Config{URL: "http://localhost", APIKey: "k"})
+	tgt, err := target.Get("dawarich", target.Config{URL: "http://localhost", APIKey: "k"}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 30*time.Second, tgt.(*Dawarich).client.Timeout)
+}
+
+func TestDawarich_EmitTrackerIDFromConfig(t *testing.T) {
+	tgt, err := target.Get("dawarich", target.Config{URL: "http://localhost", APIKey: "k"}, Config{EmitTrackerID: true})
+	require.NoError(t, err)
+	assert.True(t, tgt.(*Dawarich).emitTrackerID)
+}
+
+func TestDawarich_EmitTrackerIDDefaultsOff(t *testing.T) {
+	tgt, err := target.Get("dawarich", target.Config{URL: "http://localhost", APIKey: "k"}, nil)
+	require.NoError(t, err)
+	assert.False(t, tgt.(*Dawarich).emitTrackerID)
+}
+
+func TestDawarich_WrongConfigType(t *testing.T) {
+	_, err := target.Get("dawarich", target.Config{URL: "http://localhost", APIKey: "k"}, "not-a-dawarich-config")
+	require.Error(t, err)
 }
 
 func TestDawarich_Type(t *testing.T) {

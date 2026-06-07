@@ -14,8 +14,14 @@ import (
 	"github.com/Quadrubo/tracksync/server/internal/target"
 )
 
+// Config holds the dawarich-specific TARGET__DAWARICH__* settings.
+type Config struct {
+	EmitTrackerID bool `env:"EMIT_TRACKER_ID"`
+}
+
 func init() {
-	target.Register("dawarich", func(cfg target.Config) (target.Target, error) {
+	target.RegisterConfig("dawarich", Config{})
+	target.Register("dawarich", func(cfg target.Config, targetCfg any) (target.Target, error) {
 		if cfg.URL == "" {
 			return nil, fmt.Errorf("dawarich: URL is required")
 		}
@@ -23,16 +29,26 @@ func init() {
 		if timeout == 0 {
 			timeout = 30 * time.Second
 		}
+		var dcfg Config
+		if targetCfg != nil {
+			c, ok := targetCfg.(Config)
+			if !ok {
+				return nil, fmt.Errorf("dawarich: invalid target config type %T", targetCfg)
+			}
+			dcfg = c
+		}
 		return &Dawarich{
-			cfg:    cfg,
-			client: &http.Client{Timeout: timeout},
+			cfg:           cfg,
+			client:        &http.Client{Timeout: timeout},
+			emitTrackerID: dcfg.EmitTrackerID,
 		}, nil
 	})
 }
 
 type Dawarich struct {
-	cfg    target.Config
-	client *http.Client
+	cfg           target.Config
+	client        *http.Client
+	emitTrackerID bool
 }
 
 func (d *Dawarich) Type() string              { return "dawarich" }

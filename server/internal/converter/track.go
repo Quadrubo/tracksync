@@ -5,7 +5,11 @@ import "time"
 // Track is the universal internal representation of a GPS track.
 // It is a superset of all attributes across supported formats.
 type Track struct {
-	Name     string
+	Name string
+
+	// Properties are extra per-track key/values emitted by formats that support them.
+	Properties map[string]string
+
 	Segments []Segment
 }
 

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Quadrubo/tracksync/server/internal/converter"
+	"github.com/Quadrubo/tracksync/server/internal/target"
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/viper"
 )
@@ -59,6 +61,8 @@ type Config struct {
 	PassthroughConversion bool
 	Accounts              []Account `validate:"required,dive"`
 	Clients               []Client  `validate:"required,dive"`
+	// TargetConfigs holds each target type's own config, keyed by type name.
+	TargetConfigs map[string]any
 }
 
 type Account struct {
@@ -105,14 +109,28 @@ func Load(envFile string) (*Config, error) {
 		return nil, fmt.Errorf("config: MAX_UPLOAD_SIZE must be positive")
 	}
 
+	accounts, err := parseGroup[Account](v, "ACCOUNT", "DEVICE_ID")
+	if err != nil {
+		return nil, err
+	}
+	clients, err := parseGroup[Client](v, "CLIENT", "ID")
+	if err != nil {
+		return nil, err
+	}
+	targetConfigs, err := parseTargetConfigs(v)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		Port:                  v.GetString("PORT"),
 		StateDB:               v.GetString("STATE_DB"),
 		TargetTimeout:         targetTimeout,
 		MaxUploadSize:         maxUploadSize << 20, // MB to bytes
 		PassthroughConversion: v.GetBool("PASSTHROUGH_CONVERSION"),
-		Accounts:              parseGroup[Account](v, "ACCOUNT", "DEVICE_ID"),
-		Clients:               parseGroup[Client](v, "CLIENT", "ID"),
+		Accounts:              accounts,
+		Clients:               clients,
+		TargetConfigs:         targetConfigs,
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -139,10 +157,8 @@ func (cfg *Config) validate() error {
 }
 
 // parseGroup reads indexed env var groups (e.g. ACCOUNT__0__*, ACCOUNT__1__*)
-// into a slice of T. Fields are mapped via `env` struct tags, with optional
-// `default` tags. Slice fields ([]string) are split on commas.
-// Iteration stops when the sentinel key is empty.
-func parseGroup[T any](v *viper.Viper, prefix, sentinel string) []T {
+// into a slice of T, stopping at the first index whose sentinel key is empty.
+func parseGroup[T any](v *viper.Viper, prefix, sentinel string) ([]T, error) {
 	var items []T
 	rt := reflect.TypeOf((*T)(nil)).Elem()
 
@@ -151,38 +167,91 @@ func parseGroup[T any](v *viper.Viper, prefix, sentinel string) []T {
 		if v.GetString(p+sentinel) == "" {
 			break
 		}
-
 		item := reflect.New(rt).Elem()
-		for j := 0; j < rt.NumField(); j++ {
-			f := rt.Field(j)
-			key := f.Tag.Get("env")
-			if key == "" {
-				continue
-			}
-			val := v.GetString(p + key)
-			if val == "" {
-				val = f.Tag.Get("default")
-			}
-			switch f.Type.Kind() {
-			case reflect.String:
-				item.Field(j).SetString(val)
-			case reflect.Slice:
-				if val != "" {
-					var parts []string
-					for _, s := range strings.Split(val, ",") {
-						if s = strings.TrimSpace(s); s != "" {
-							parts = append(parts, s)
-						}
-					}
-					item.Field(j).Set(reflect.ValueOf(parts))
-				}
-			default:
-				panic(fmt.Sprintf("parseGroup: unsupported field type %s for %s.%s", f.Type.Kind(), rt.Name(), f.Name))
-			}
+		if err := fillStruct(v, p, item); err != nil {
+			return nil, err
 		}
 		items = append(items, item.Interface().(T))
 	}
-	return items
+	return items, nil
+}
+
+// parseTargetConfigs fills each registered target type's config from its
+// TARGET__<TYPE>__* env vars, keyed by target type.
+func parseTargetConfigs(v *viper.Viper) (map[string]any, error) {
+	configs := map[string]any{}
+	for typeName, prototype := range target.ConfigPrototypes() {
+		prefix := "TARGET__" + strings.ToUpper(typeName) + "__"
+		c, err := parseTargetConfig(v, prefix, prototype)
+		if err != nil {
+			return nil, err
+		}
+		configs[typeName] = c
+	}
+	return configs, nil
+}
+
+// parseTargetConfig fills a fresh copy of prototype from env vars under prefix.
+func parseTargetConfig(v *viper.Viper, prefix string, prototype any) (any, error) {
+	rv := reflect.New(reflect.TypeOf(prototype)).Elem()
+	if err := fillStruct(v, prefix, rv); err != nil {
+		return nil, err
+	}
+	return rv.Interface(), nil
+}
+
+// fillStruct populates struct rv from env vars under prefix, mapping fields via
+// `env` tags with optional `default` tags. Fields without an `env` tag are
+// skipped; []string fields are split on commas.
+func fillStruct(v *viper.Viper, prefix string, rv reflect.Value) error {
+	rt := rv.Type()
+	for j := 0; j < rt.NumField(); j++ {
+		f := rt.Field(j)
+		key := f.Tag.Get("env")
+		if key == "" {
+			continue
+		}
+		val := v.GetString(prefix + key)
+		if val == "" {
+			val = f.Tag.Get("default")
+		}
+		if err := setField(rv.Field(j), prefix+key, val); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// setField assigns val to a field by kind; slices split on commas. name is the
+// env key, used for error messages. An unsupported field kind means a
+// misdeclared config struct, so it panics rather than returning an error.
+func setField(field reflect.Value, name, val string) error {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(val)
+	case reflect.Bool:
+		if val == "" {
+			return nil
+		}
+		b, err := strconv.ParseBool(strings.TrimSpace(val))
+		if err != nil {
+			return fmt.Errorf("config: %s: invalid boolean value %q", name, val)
+		}
+		field.SetBool(b)
+	case reflect.Slice:
+		if val != "" {
+			var parts []string
+			for _, s := range strings.Split(val, ",") {
+				if s = strings.TrimSpace(s); s != "" {
+					parts = append(parts, s)
+				}
+			}
+			field.Set(reflect.ValueOf(parts))
+		}
+	default:
+		panic(fmt.Sprintf("config: %s: unsupported field kind %s", name, field.Kind()))
+	}
+	return nil
 }
 
 // ResolveToken returns the client's auth token.
