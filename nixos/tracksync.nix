@@ -8,7 +8,7 @@ flake:
 
 let
   cfg = config.services.tracksync;
-  tracksyncPkg = flake.packages.${pkgs.system}.default;
+  tracksyncPkg = flake.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
   mkDeviceConfig =
     device:
